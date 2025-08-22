@@ -10,56 +10,116 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <cmath>
 
-static uint16_t RU16(std::istream& in, bool big){uint8_t b[2];in.read((char*)b,2);return big?(b[0]<<8|b[1]):(b[1]<<8|b[0]);}
-static uint32_t RU32(std::istream& in, bool big){uint8_t b[4];in.read((char*)b,4);return big?(uint32_t(b[0])<<24|uint32_t(b[1])<<16|uint32_t(b[2])<<8|b[3]):(uint32_t(b[3])<<24|uint32_t(b[2])<<16|uint32_t(b[1])<<8|b[0]);}
-static int16_t I16(const uint8_t* p, bool big){return big?int16_t(int16_t(p[0])<<8|p[1]):int16_t(int16_t(p[1])<<8|p[0]);}
+static uint16_t RU16(std::istream& in){ uint8_t b[2]; in.read((char*)b,2); return b[0] | (b[1]<<8); }
+static uint32_t RU32(std::istream& in){ uint8_t b[4]; in.read((char*)b,4); return uint32_t(b[0]) | (uint32_t(b[1])<<8) | (uint32_t(b[2])<<16) | (uint32_t(b[3])<<24); }
+static int16_t I16(const uint8_t* p){ return int16_t(p[0] | (p[1]<<8)); }
+
+// read signed 24-bit little-endian → int32_t
+static int32_t I24(const uint8_t* p){
+    int32_t v = (p[0] | (p[1]<<8) | (p[2]<<16));
+    if(v & 0x800000) v |= ~0xFFFFFF; // sign extend
+    return v;
+}
 
 int main(int argc, char** argv){
-    if(argc<3){std::cerr<<"Usage: "<<argv[0]<<" input.wav output.csv [max_samples]\n";return 1;}
+    if(argc<3){ std::cerr<<"Usage: "<<argv[0]<<" input.wav output.csv [max_samples]\n"; return 1; }
     std::string inPath=argv[1], outPath=argv[2];
     size_t max_samples = (argc>=4)? std::stoul(argv[3]) : 0;
 
-    std::ifstream f(inPath, std::ios::binary); if(!f){std::cerr<<"Open fail: "<<inPath<<"\n";return 1;}
-    char riff[4]; f.read(riff,4); bool big=false;
-    if(std::string(riff,4)=="RIFF") big=false;
-    else if(std::string(riff,4)=="RIFX") big=true;
-    else {std::cerr<<"Not RIFF/RIFX\n"; return 1;}
-    RU32(f,big); char wave[4]; f.read(wave,4); if(std::string(wave,4)!="WAVE"){std::cerr<<"Not WAVE\n";return 1;}
+    std::ifstream f(inPath, std::ios::binary);
+    if(!f){ std::cerr<<"Open fail: "<<inPath<<"\n"; return 1; }
 
-    bool have_fmt=false, have_data=false; uint16_t fmt=0,ch=0,bps=0; uint32_t sr=0; std::streampos dataPos{}; uint32_t dataSize=0;
-    while(f && !(have_fmt&&have_data)){
-        char id[4]; if(!f.read(id,4)) break; uint32_t sz=RU32(f,big); std::string sid(id,4);
+    char riff[4]; f.read(riff,4);
+    if(std::string(riff,4)!="RIFF"){ std::cerr<<"Not RIFF\n"; return 1; }
+    RU32(f); // file size
+    char wave[4]; f.read(wave,4);
+    if(std::string(wave,4)!="WAVE"){ std::cerr<<"Not WAVE\n"; return 1; }
+
+    bool have_fmt=false, have_data=false;
+    uint16_t fmt=0, ch=0, bps=0; uint32_t sr=0;
+    std::streampos dataPos{}; uint32_t dataSize=0;
+
+    while(f && !(have_fmt && have_data)){
+        char id[4]; if(!f.read(id,4)) break;
+        uint32_t sz = RU32(f);
+        std::string sid(id,4);
+
         if(sid=="fmt "){
-            have_fmt=true; std::vector<uint8_t> buf(sz); f.read((char*)buf.data(),sz);
-            fmt = big?(buf[0]<<8|buf[1]):(buf[1]<<8|buf[0]);
-            ch  = big?(buf[2]<<8|buf[3]):(buf[3]<<8|buf[2]);
-            sr  = big?(uint32_t(buf[4])<<24|uint32_t(buf[5])<<16|uint32_t(buf[6])<<8|buf[7])
-                      :(uint32_t(buf[7])<<24|uint32_t(buf[6])<<16|uint32_t(buf[5])<<8|buf[4]);
-            bps = big?(buf[14]<<8|buf[15]):(buf[15]<<8|buf[14]);
-        } else if(sid=="data"){
-            have_data=true; dataPos=f.tellg(); dataSize=sz; f.seekg(sz+(sz&1), std::ios::cur);
-        } else {
-            f.seekg(sz+(sz&1), std::ios::cur);
+            have_fmt=true;
+            uint16_t audioFormat = RU16(f);     // PCM=1, Float=3
+            ch  = RU16(f);                      // channels
+            sr  = RU32(f);                      // sample rate
+            RU32(f);                            // byte rate (skip)
+            RU16(f);                            // block align (skip)
+            bps = RU16(f);                      // bits per sample
+            if(sz>16) f.seekg(sz-16, std::ios::cur); // skip extra fields
+            fmt = audioFormat;
+        }
+        else if(sid=="data"){
+            have_data=true;
+            dataPos = f.tellg();
+            dataSize = sz;
+            f.seekg(sz+(sz&1), std::ios::cur); // skip
+        }
+        else {
+            f.seekg(sz+(sz&1), std::ios::cur); // skip unknown chunks
         }
     }
-    if(!have_fmt||!have_data){std::cerr<<"Missing fmt/data\n";return 1;}
-    if(fmt!=1||bps!=16){std::cerr<<"Only 16-bit PCM supported\n";return 1;}
+
+    if(!have_fmt || !have_data){ std::cerr<<"Missing fmt/data\n"; return 1; }
+    if(!((fmt==1 && (bps==16 || bps==24)) || (fmt==3 && bps==32))){
+        std::cerr<<"Only PCM 16/24-bit or Float32 supported\n";
+        return 1;
+    }
 
     f.clear(); f.seekg(dataPos);
-    std::vector<uint8_t> raw(dataSize); if(!f.read((char*)raw.data(),dataSize)){std::cerr<<"Read data fail\n";return 1;}
-    size_t frames = dataSize/(2*ch);
+    std::vector<uint8_t> raw(dataSize);
+    if(!f.read((char*)raw.data(),dataSize)){ std::cerr<<"Read data fail\n"; return 1; }
 
-    std::ofstream csv(outPath); if(!csv){std::cerr<<"Open output fail: "<<outPath<<"\n";return 1;}
+    size_t sample_bytes = bps/8;
+    size_t frames = dataSize/(sample_bytes*ch);
+
+    std::ofstream csv(outPath);
+    if(!csv){ std::cerr<<"Open output fail: "<<outPath<<"\n"; return 1; }
+
     csv<<"Index,Sample\n";
     size_t N = (max_samples==0)? frames : std::min(frames, max_samples);
+
     for(size_t i=0;i<N;++i){
-        if(ch==1){ csv<<i<<","<<I16(&raw[i*2],big)<<"\n"; }
-        else {
-            int32_t L=I16(&raw[(i*ch+0)*2],big), R=I16(&raw[(i*ch+1)*2],big);
-            csv<<i<<","<<int16_t((L+R)/2)<<"\n";
+        double sample=0.0;
+        if(fmt==1 && bps==16){ // PCM16
+            if(ch==1){
+                sample = I16(&raw[i*2]);
+            } else {
+                int32_t L=I16(&raw[(i*ch+0)*2]);
+                int32_t R=I16(&raw[(i*ch+1)*2]);
+                sample = (L+R)/2.0;
+            }
         }
+        else if(fmt==1 && bps==24){ // PCM24
+            if(ch==1){
+                sample = I24(&raw[i*3]);
+            } else {
+                int32_t L=I24(&raw[(i*ch+0)*3]);
+                int32_t R=I24(&raw[(i*ch+1)*3]);
+                sample = (L+R)/2.0;
+            }
+        }
+        else if(fmt==3 && bps==32){ // Float32
+            if(ch==1){
+                float v = *reinterpret_cast<const float*>(&raw[i*4]);
+                sample = v;
+            } else {
+                float L = *reinterpret_cast<const float*>(&raw[(i*ch+0)*4]);
+                float R = *reinterpret_cast<const float*>(&raw[(i*ch+1)*4]);
+                sample = (L+R)/2.0;
+            }
+        }
+        csv<<i<<","<<sample<<"\n";
     }
-    std::cout<<"Wrote "<<N<<" samples to "<<outPath<<" (sr="<<sr<<")\n";
+
+    std::cout<<"Wrote "<<N<<" samples to "<<outPath<<" (sr="<<sr<<", ch="<<ch<<", bps="<<bps<<", fmt="<<fmt<<")\n";
     return 0;
 }
