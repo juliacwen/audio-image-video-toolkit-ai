@@ -38,8 +38,9 @@ Convert `.wav` files to `.csv` sample data.
 ```bash
 cd cpp/audio
 
-# build original version
+# build
 g++ -o wav_to_csv wav_to_csv.cpp
+
 
 ```
 
