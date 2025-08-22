@@ -1,112 +1,111 @@
-# Audio & Video Tools
+# Audio Video Tools
 
-This project provides a collection of small utilities for working with **audio** and **video** data.
-08-18-25
-- **C++ audio tool**: Convert WAV files to CSV sample data.
-08-20-25
-- **Python audio tools**: Compare and visualize CSV audio data.
-08-22-25
-- **Python video tool**: Generate depth-estimation videos using MiDaS models.
----
-## 🚀 Setup
-### 1. Clone and enter project
-```bash
-git clone <your-repo-url>
-cd audio_video_tools_correct
-```
-### 2. Create virtual environment
+This project provides utilities for working with audio and video files, including
+conversion of WAV files to CSV, waveform comparison, and depth estimation from video.
+
+## Requirements
+
+Install Python dependencies into a virtual environment:
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-```
-### 3. Install dependencies
-```bash
 pip install -r requirements.txt
 ```
----
-## 🎵 C++ Audio Tool
-Convert `.wav` files to `.csv` sample data.
-### Build
-```bash
-cd cpp/audio
-# build the converter
-g++ -std=c++17 -O2 -Wall -Wextra -o wav_to_csv wav_to_csv.cpp
 
-```
-### Run
+For C++ components you need a modern compiler (C++17) and [GoogleTest](https://github.com/google/googletest).  
+On macOS with Homebrew:
+
 ```bash
+brew install googletest
+```
+
+## Usage
+
+### WAV to CSV (C++)
+
+Convert a WAV file to CSV (supports PCM 16‑bit, PCM 24‑bit, and IEEE Float32 WAVs):
+
+```bash
+g++ -std=c++17 -o wav_to_csv cpp/audio/wav_to_csv.cpp
 ./wav_to_csv input.wav output.csv
 ```
----
-## 🎶 Python Audio Tools
-Compare CSV audio sample files and visualize differences.
 
-### Compare with matplotlib
+The output CSV contains two columns: `Index` and `Sample`.
+
+### Compare CSV (Python)
+
+Compare two CSV files and visualize the difference:
+
 ```bash
-cd python/audio
-python3 compare_csv.py samples.csv samples_5.csv --start 0 --limit 100
-
---start → starting sample index
---limit → number of samples to plot
-- **Top plot**: overlay of the two waveforms
-- **Bottom plot**: difference between them (in red)
+python3 python/audio/compare_csv.py samples.csv samples_5.csv --start 100 --limit 1000
 ```
-### Compare with PyTorch backend
+
+Overlay plot (top): both signals.  
+Difference plot (bottom): residuals highlighted in red.
+
+You can also use the Torch implementation:
+
 ```bash
-python3 comparetorch_csv.py samples.csv samples_5.csv --start 0 --limit 100
+python3 python/audio/comparetorch_csv.py samples.csv samples_5.csv --start 100 --limit 1000
 ```
-This version uses PyTorch tensors for faster handling of large CSVs.
----
-## 🎥 Video Depth Tool
-Generate a depth-estimation video from an input video using **MiDaS**.
 
-### Run
+### Video Depth Estimation (Python)
+
+Run MiDaS depth estimation on a video:
+
 ```bash
-cd python/video
-python3 video_depth_midas.py sample.mp4 out_depth.mp4 --model DPT_Large --debug
-```
-- `--model` can be `DPT_Large`, `DPT_Hybrid`, or `MiDaS_small`
-- `--debug` prints extra information while processing
-
-### Example Output
-- Takes `sample.mp4`
-- Produces `out_depth.mp4` with depth maps colorized using `COLORMAP_MAGMA`
----
-
-## 📦 Requirements
-See [`requirements.txt`](requirements.txt). Key libraries:
-- PyTorch (torch, torchvision, torchaudio)
-- OpenCV
-- matplotlib, numpy, scipy
-- timm (for MiDaS models)
-- imageio + imageio-ffmpeg
----
-
-## 📂 Project Structure
-```
-audio_video_tools_correct/
-├── requirements.txt
-├── cpp/
-│   └── audio/
-│       ├── wav_to_csv.cpp
-│       ├── wav_to_csv_fix.cpp
-│       └── ...
-├── python/
-│   ├── audio/
-│   │   ├── compare_csv.py
-│   │   ├── comp_plot_wav_diff.py
-│   │   └── comparetorch_csv.py
-│   └── video/
-│       └── video_depth_midas.py
+python3 python/video/video_depth_midas.py sample.mp4 out_depth.mp4 --debug
 ```
 
----
-## ✨ Notes
-- Use `.avi`if MP4 codecs fail with OpenCV. With `imageio-ffmpeg`, `.mp4` writing is always supported.
-- For consistent environments, recreate the venv and run `pip install -r requirements.txt`.
----
-## Author
-Julia Wen jwenhub@gmail.com
+## Running Tests
 
-## 📜 License
-MIT License (adjust as needed).
+### Python Tests
+
+Python tests use **pytest**. Make sure your virtual environment is activated and dependencies installed:
+
+```bash
+pip install -r requirements.txt
+pytest python/tests
+```
+
+This runs the CSV comparison tests and validates that sample‑to‑CSV conversion works as expected.
+
+### C++ Tests
+
+C++ tests use **GoogleTest (gtest)**. They generate temporary WAV files in 16‑bit PCM, 24‑bit PCM, and IEEE float32, then run the `wav_to_csv` converter and check that:
+
+- Zero input samples produce zero CSV values  
+- Non‑zero input samples produce non‑zero CSV values  
+
+#### Build the Test
+
+```bash
+g++ -std=c++17 -I/opt/homebrew/include -L/opt/homebrew/lib     cpp/tests/test_wav_to_csv.cpp -lgtest -lgtest_main -pthread     -o test_wav_to_csv
+```
+
+#### Run the Test
+
+```bash
+./test_wav_to_csv
+```
+
+Expected output:
+
+```
+[==========] Running 3 tests from 1 test suite.
+[----------] 3 tests from WavToCsvTest
+[ RUN      ] WavToCsvTest.Converts16BitWav
+[       OK ] WavToCsvTest.Converts16BitWav (5 ms)
+[ RUN      ] WavToCsvTest.Converts24BitWav
+[       OK ] WavToCsvTest.Converts24BitWav (6 ms)
+[ RUN      ] WavToCsvTest.ConvertsFloat32Wav
+[       OK ] WavToCsvTest.ConvertsFloat32Wav (5 ms)
+[----------] 3 tests from WavToCsvTest (16 ms total)
+
+[  PASSED  ] 3 tests.
+```
+
+## License
+
+MIT License
