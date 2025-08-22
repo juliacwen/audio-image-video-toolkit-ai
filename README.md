@@ -58,22 +58,17 @@ All Python scripts should be run with `python3`.
 ### Compare with matplotlib
 ```bash
 cd python/audio
-python3 comparetorch_csv.py samples.csv samples_5.csv --start 0 --limit 100
+python3 compare_csv.py samples.csv samples_5.csv --start 0 --limit 100
 
 --start → starting sample index
 --limit → number of samples to plot
-Top subplot = both waveforms overlaid
-Bottom subplot = difference (red)
-```
-
 - **Top plot**: overlay of the two waveforms
 - **Bottom plot**: difference between them (in red)
-
+```
 ### Compare with PyTorch backend
 ```bash
-python3 comparetorch_csv.py samples.csv samples_5.csv --limit 100
+python3 comparetorch_csv.py samples.csv samples_5.csv --start 0 --limit 100
 ```
-
 This version uses PyTorch tensors for faster handling of large CSVs.
 
 ---
