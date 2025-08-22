@@ -104,6 +104,7 @@ The C++ tests generate small **16‑bit**, **24‑bit**, and **float32** WAV fil
 
 ## Changelog
 - **2025‑08‑22** — Python audio tools: compare & visualization improvements.
+- **2025‑08‑21** — Python video tools: MiDaS depth‑estimation
 - **2025‑08‑20** — C++ audio tool: WAV → CSV converter.
 - **2025‑08‑18** — Initial utilities overview.
 
