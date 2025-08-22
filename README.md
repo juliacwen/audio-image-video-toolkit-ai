@@ -41,8 +41,6 @@ cd cpp/audio
 # build original version
 g++ -o wav_to_csv wav_to_csv.cpp
 
-# or build fixed version
-g++ -o wav_to_csv_fix wav_to_csv_fix.cpp
 ```
 
 ### Run
