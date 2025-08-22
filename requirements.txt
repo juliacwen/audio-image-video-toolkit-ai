@@ -1,0 +1,10 @@
+torch==2.7.1
+torchvision==0.22.1
+torchaudio==2.7.1
+opencv-python==4.10.0.84
+matplotlib
+numpy
+scipy
+timm
+imageio
+imageio-ffmpeg

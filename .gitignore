@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+venv/
+.env/
+.venv/
+
+# Build / Dist
+build/
+dist/
+*.egg-info/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# C++ build artifacts
+*.o
+*.out
+*.exe
+*.obj
+*.dll
+*.lib
+*.a
+*.lo
+*.la
+
+# Generated CSV and media
+*.csv
+*.wav
+*.mp4
+*.avi
+*.mkv
+
