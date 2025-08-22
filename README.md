@@ -3,6 +3,14 @@
 This project provides utilities for working with audio and video files, including
 conversion of WAV files to CSV, waveform comparison, and depth estimation from video.
 
+This project provides a collection of small utilities for working with **audio** and **video** data.
+08-18-25
+- **C++ audio tool**: Convert WAV files to CSV sample data.
+08-20-25
+- **Python audio tools**: Compare and visualize CSV audio data.
+08-22-25
+- **Python video tool**: Generate depth-estimation videos using MiDaS models.
+
 ## Requirements
 
 Install Python dependencies into a virtual environment:
@@ -40,9 +48,10 @@ Compare two CSV files and visualize the difference:
 ```bash
 python3 python/audio/compare_csv.py samples.csv samples_5.csv --start 100 --limit 1000
 ```
-
-Overlay plot (top): both signals.  
-Difference plot (bottom): residuals highlighted in red.
+--start → starting sample index
+--limit → number of samples to plot
+- **Top plot**: overlay of the two waveforms
+- **Bottom plot**: difference between them (in red)
 
 You can also use the Torch implementation:
 
@@ -57,6 +66,8 @@ Run MiDaS depth estimation on a video:
 ```bash
 python3 python/video/video_depth_midas.py sample.mp4 out_depth.mp4 --debug
 ```
+- `--model` can be `DPT_Large`, `DPT_Hybrid`, or `MiDaS_small`
+- `--debug` prints extra information while processing
 
 ## Running Tests
 
@@ -106,6 +117,8 @@ Expected output:
 [  PASSED  ] 3 tests.
 ```
 
-## License
+## Author
+Julia Wen jwenhub@gmail.com
 
+## License
 MIT License
