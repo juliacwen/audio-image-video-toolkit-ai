@@ -1,6 +1,9 @@
 //=============================================================================
-//  FileName:      wav_to_csv.cpp
-//  Extended:      Also compute FFT spectrum -> output_spectrum.csv
+//  FileName:      wav_freq_csv.cpp
+//  Copyright (c)  2025  Julia Wen. All Rights Reserved.
+//  Date:          August 23, 2025
+//  Description:   wav_feq_csv.cpp (input.wav output.csv [max_samples])
+//                 Also compute FFT spectrum -> output_spectrum.csv
 //=============================================================================
 
 #include <cstdint>

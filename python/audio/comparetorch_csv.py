@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
+"""
+Filename: compare_csv.py
+Author: Julia Wen
+Date: 2025-08-23
+Compare two CSV audio sample files (Index,Sample) and compare two CSV spectrum files
+- Handles int16, int24, and float32 CSVs
+- Float32 values in [-1,1] are scaled to int16 range for comparison
+- Supports --start/-s K and --limit/-n N (or a bare integer N)
+- One figure with 2 subplots: overlay (top), difference (bottom)
+"""
 import os, sys, csv
 import torch
 import matplotlib
