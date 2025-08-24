@@ -4,7 +4,7 @@ import subprocess
 import math
 
 # Point to the compiled binary in project root
-SCRIPT = os.path.join(os.path.dirname(__file__), "..", "..", "wav_to_csv")
+SCRIPT = os.path.join(os.path.dirname(__file__), "..", "..", "wav_freq_csv")
 
 def write_wav(path, sr=8000, samples=128, freq=440):
     import wave, struct
@@ -26,7 +26,7 @@ def load_csv(path):
             vals.append(float(row[1]))
     return vals
 
-def test_wav_to_csv(tmp_path):
+def test_wav_and_spectrum(tmp_path):
     wav = tmp_path / "tone.wav"
     csvout = tmp_path / "tone.csv"
     write_wav(str(wav))
@@ -34,4 +34,8 @@ def test_wav_to_csv(tmp_path):
     subprocess.run([SCRIPT, str(wav), str(csvout)], check=True)
     samples = load_csv(csvout)
     assert len(samples) > 0
-    assert any(v != 0.0 for v in samples)
+
+    specfile = str(csvout).replace(".csv","_spectrum.csv")
+    mags = load_csv(specfile)
+    assert len(mags) > 0
+    assert any(v != 0.0 for v in mags)

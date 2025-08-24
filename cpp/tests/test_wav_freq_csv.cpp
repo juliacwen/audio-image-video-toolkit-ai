@@ -23,11 +23,11 @@ std::vector<float> loadCsv(const std::string& path) {
     return vals;
 }
 
-TEST(WavToCsvTest, GenerateCsv) {
+TEST(WavFreqCsvTest, GenerateSpectrum) {
     const char* wav = "sine.wav";
     const char* csv = "sine.csv";
     int sampleRate = 8000;
-    int samples = 128;
+    int samples = 256;
     std::vector<int16_t> buf(samples);
     for (int i=0;i<samples;i++) {
         buf[i] = (int16_t)(10000 * sin(2*M_PI*440*i/sampleRate));
@@ -41,13 +41,17 @@ TEST(WavToCsvTest, GenerateCsv) {
     f.write("data",4); uint32_t dsz=samples*2; f.write((char*)&dsz,4);
     f.write((char*)buf.data(),dsz); f.close();
 
-    // Call wav_to_csv binary from project root
-    int ret = std::system(("./wav_to_csv " + std::string(wav) + " " + csv).c_str());
+    // Call the compiled binary in project root
+    int ret = std::system(("./wav_freq_csv " + std::string(wav) + " " + csv).c_str());
     ASSERT_EQ(ret, 0);
 
     auto samples_csv = loadCsv(csv);
     ASSERT_EQ(samples_csv.size(), samples);
+
+    std::string specfile = "sine_spectrum.csv";
+    auto mags = loadCsv(specfile);
+    ASSERT_GT(mags.size(), 0);
     bool any_nonzero = false;
-    for (float v: samples_csv) { if (v!=0.0f) { any_nonzero = true; break; } }
+    for (float v: mags) { if (v!=0.0f) { any_nonzero = true; break; } }
     ASSERT_TRUE(any_nonzero);
 }
