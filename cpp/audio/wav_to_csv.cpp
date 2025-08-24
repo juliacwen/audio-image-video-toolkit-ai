@@ -12,12 +12,12 @@
 #include <vector>
 #include <cmath>
 
-static uint16_t RU16(std::istream& in){ uint8_t b[2]; in.read((char*)b,2); return b[0] | (b[1]<<8); }
-static uint32_t RU32(std::istream& in){ uint8_t b[4]; in.read((char*)b,4); return uint32_t(b[0]) | (uint32_t(b[1])<<8) | (uint32_t(b[2])<<16) | (uint32_t(b[3])<<24); }
-static int16_t I16(const uint8_t* p){ return int16_t(p[0] | (p[1]<<8)); }
+static uint16_t readU16(std::istream& in){ uint8_t b[2]; in.read((char*)b,2); return b[0] | (b[1]<<8); }
+static uint32_t readU32(std::istream& in){ uint8_t b[4]; in.read((char*)b,4); return uint32_t(b[0]) | (uint32_t(b[1])<<8) | (uint32_t(b[2])<<16) | (uint32_t(b[3])<<24); }
+static int16_t readI16(const uint8_t* p){ return int16_t(p[0] | (p[1]<<8)); }
 
 // read signed 24-bit little-endian → int32_t
-static int32_t I24(const uint8_t* p){
+static int32_t readI24(const uint8_t* p){
     int32_t v = (p[0] | (p[1]<<8) | (p[2]<<16));
     if(v & 0x800000) v |= ~0xFFFFFF; // sign extend
     return v;
@@ -33,7 +33,7 @@ int main(int argc, char** argv){
 
     char riff[4]; f.read(riff,4);
     if(std::string(riff,4)!="RIFF"){ std::cerr<<"Not RIFF\n"; return 1; }
-    RU32(f); // file size
+    readU32(f); // file size
     char wave[4]; f.read(wave,4);
     if(std::string(wave,4)!="WAVE"){ std::cerr<<"Not WAVE\n"; return 1; }
 
@@ -43,17 +43,17 @@ int main(int argc, char** argv){
 
     while(f && !(have_fmt && have_data)){
         char id[4]; if(!f.read(id,4)) break;
-        uint32_t sz = RU32(f);
+        uint32_t sz = readU32(f);
         std::string sid(id,4);
 
         if(sid=="fmt "){
             have_fmt=true;
-            uint16_t audioFormat = RU16(f);     // PCM=1, Float=3
-            ch  = RU16(f);                      // channels
-            sr  = RU32(f);                      // sample rate
-            RU32(f);                            // byte rate (skip)
-            RU16(f);                            // block align (skip)
-            bps = RU16(f);                      // bits per sample
+            uint16_t audioFormat = readU16(f);     // PCM=1, Float=3
+            ch  = readU16(f);                      // channels
+            sr  = readU32(f);                      // sample rate
+            readU32(f);                            // byte rate (skip)
+            readU16(f);                            // block align (skip)
+            bps = readU16(f);                      // bits per sample
             if(sz>16) f.seekg(sz-16, std::ios::cur); // skip extra fields
             fmt = audioFormat;
         }
@@ -91,19 +91,19 @@ int main(int argc, char** argv){
         double sample=0.0;
         if(fmt==1 && bps==16){ // PCM16
             if(ch==1){
-                sample = I16(&raw[i*2]);
+                sample = readI16(&raw[i*2]);
             } else {
-                int32_t L=I16(&raw[(i*ch+0)*2]);
-                int32_t R=I16(&raw[(i*ch+1)*2]);
+                int32_t L=readI16(&raw[(i*ch+0)*2]);
+                int32_t R=readI16(&raw[(i*ch+1)*2]);
                 sample = (L+R)/2.0;
             }
         }
         else if(fmt==1 && bps==24){ // PCM24
             if(ch==1){
-                sample = I24(&raw[i*3]);
+                sample = readI24(&raw[i*3]);
             } else {
-                int32_t L=I24(&raw[(i*ch+0)*3]);
-                int32_t R=I24(&raw[(i*ch+1)*3]);
+                int32_t L=readI24(&raw[(i*ch+0)*3]);
+                int32_t R=readI24(&raw[(i*ch+1)*3]);
                 sample = (L+R)/2.0;
             }
         }
