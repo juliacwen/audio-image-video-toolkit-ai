@@ -1,0 +1,15 @@
+# Force C++ files to be counted as C++
+*.cpp linguist-language=C++
+*.cxx linguist-language=C++
+*.cc linguist-language=C++
+*.h linguist-language=C++
+*.hpp linguist-language=C++
+
+# Force Python files to be counted as Python
+*.py linguist-language=Python
+
+# Optional: mark build/generated files as vendored so they don't skew stats
+build/** linguist-vendored
+*.o linguist-vendored
+*.so linguist-vendored
+
