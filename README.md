@@ -2,11 +2,11 @@
 
 **Author:** Julia Wen (<wendigilane@gmail.com>)
 
-Utilities for working with audio and video data: converting WAV to CSV, generating FFT spectrum, comparing waveforms/spectrums, and running MiDaS depth on videos.
+Utilities for working with audio and video data: converting WAV to CSV, generating FFT spectrum, comparing waveforms/spectrums, running AI-assisted FFT windowing tests, and running MiDaS depth on videos.
 
 ## Table of Contents
 - [Features](#features)
-- [**Dependencies by Module**](#dependencies-by-module)
+- [Dependencies by Module](#dependencies-by-module)
 - [Project Layout](#project-layout)
 - [Build (C++)](#build-c)
 - [C++ Tests](#c-tests)
@@ -20,26 +20,36 @@ Utilities for working with audio and video data: converting WAV to CSV, generati
 - **C++ Tools**
   - `wav_to_csv.cpp`: WAV → CSV (supports PCM **16-bit**, **24-bit**, and **IEEE Float32**; outputs `Index,Sample`).  
     *Implementation: manual WAV parsing in C++.*
-  - `wav_freq_csv.cpp`: WAV → CSV **and** FFT Spectrum CSV (`Index,Sample` and `Frequency,Magnitude`) with optional windowing (hann, hamming, blackman, rectangular).  
-    *Implementation: manual WAV parsing + FFT using `std::complex`.*
+  - `wav_freq_csv.cpp`: WAV → CSV **and** FFT Spectrum CSV (`Index,Sample` and `Frequency,Magnitude`).  
+    *Implementation: manual WAV parsing + FFT using `std::complex`. Supports selectable FFT windows: rectangular, Hann, Hamming, Blackman.*
 
 - **Python Audio Tools**
   - `python/audio/compare_csv.py` — compare two **time-domain WAV CSVs**.  
-    *Uses **NumPy**, **Pandas**, **Matplotlib** (no Torch).*
+    *Uses **NumPy**, **Pandas**, **Matplotlib**.*
   - `python/audio/comparetorch_csv.py` — compare **time-domain or spectrum CSVs** with overlay + diff.  
     *Uses **PyTorch** for tensor ops, **Matplotlib** for plotting.*
-  - `python/audio/comp_plot_wav_diff.py` — compare **two WAV audio files** directly (PCM 16/24-bit or Float32).  
-    *Uses **torchaudio** (for WAV I/O), **PyTorch** (ops), **Matplotlib** (plots).*
+  - `python/audio/comp_plot_wav_diff.py` — compare **two WAV audio files** directly.  
+    *Uses **torchaudio** (for WAV I/O), **PyTorch**, **Matplotlib**.*
 
 - **Python Video Tools**
-  - `python/video/video_depth_midas.py` — MiDaS (Mixed-Domain Attention Stereo) depth-estimation to MP4 with selectable models.  
-    *Uses **OpenCV** (video I/O), **PyTorch** (MiDaS models).*
+  - `python/video/video_depth_midas.py` — MiDaS depth-estimation to MP4 with selectable models.  
+    **Flags**
+    - `--model` — MiDaS variant:
+      - `DPT_Hybrid` — balance of quality/speed (default recommended).
+      - `DPT_Large` — higher quality, slower.
+      - `MiDaS_small` — fastest, lower quality.
+    - `--debug` — verbose logging and optional intermediate outputs.  
+    **Backends:** OpenCV, PyTorch.  
+    **Note:** MiDaS = Mixed-Domain Attention Stereo depth estimation model (Intel/ETH Zürich, PyTorch implementation).
 
-- **Tests**
-  - **C++**: GoogleTest (`cpp/tests/test_wav_to_csv.cpp`, `cpp/tests/test_wav_freq_csv.cpp`) and pytest wrappers for binaries (`cpp/tests/test_wav_to_csv.py`, `cpp/tests/test_wav_freq_csv.py`); test_wav_freq_csv tests all windows (hann, hamming, blackman, rectangular) and 1 kHz sine at 8 kHz.
-  - **Python**: pytest for audio & video tools (`python/tests/`).
+- **AI-assisted / Automated FFT Windowing**
+  - Updated `wav_freq_csv` to support **multiple FFT windows**.
+  - Python/pytest wrapper `cpp/tests/test_ai_fft_windowing.py` executes `ai_test_all_windows.py`:
+    - Generates **1 kHz sine WAV at 8 kHz sample rate**.
+    - Tests FFT with **rectangular, Hann, Hamming, and Blackman** windows.
+    - Produces CSV outputs for validation and comparison.
 
-## **Dependencies by Module**
+## Dependencies by Module
 
 | Tool/Script                      | Domain        | Libraries Used                           |
 |----------------------------------|---------------|------------------------------------------|
@@ -49,6 +59,7 @@ Utilities for working with audio and video data: converting WAV to CSV, generati
 | `python/audio/comparetorch_csv.py` | Audio (Py)  | PyTorch, Matplotlib                      |
 | `python/audio/comp_plot_wav_diff.py` | Audio (Py)| torchaudio, PyTorch, Matplotlib          |
 | `python/video/video_depth_midas.py` | Video (Py) | OpenCV, PyTorch (MiDaS models)           |
+| `cpp/tests/ai_tools/ai_test_all_windows.py` | Audio/AI | Python standard library (subprocess, math) |
 
 ## Project Layout
 ```
@@ -57,18 +68,21 @@ cpp/
     wav_to_csv.cpp
     wav_freq_csv.cpp
   tests/
-    test_wav_to_csv.cpp        # gtest for wav_to_csv
-    test_wav_freq_csv.cpp      # gtest for wav_freq_csv
-    test_wav_to_csv.py         # pytest wrapper for wav_to_csv (calls compiled binary)
-    test_wav_freq_csv.py       # pytest wrapper for wav_freq_csv (calls compiled binary)
-
+    test_wav_to_csv.cpp
+    test_wav_freq_csv.cpp
+    test_wav_to_csv.py
+    test_wav_freq_csv.py
+    test_ai_fft_windowing.py
+    ai_tools/
+      ai_test_all_windows.py
+      generate_wav.py
 python/
   audio/
-    compare_csv.py             # NumPy/Pandas
-    comparetorch_csv.py        # Torch
-    comp_plot_wav_diff.py      # torchaudio + Torch
+    compare_csv.py
+    comparetorch_csv.py
+    comp_plot_wav_diff.py
   video/
-    video_depth_midas.py       # OpenCV + Torch (MiDaS)
+    video_depth_midas.py
   tests/
     test_compare_csv.py
     test_comparetorch.py
@@ -87,7 +101,7 @@ This compiles:
 - `test_wav_to_csv`
 - `test_wav_freq_csv`
 
-> Binaries are placed in the project root (`./wav_to_csv`, `./wav_freq_csv`).
+Binaries are placed in the project root (`./wav_to_csv`, `./wav_freq_csv`).
 
 ### (Optional) Manual compile
 ```bash
@@ -107,84 +121,52 @@ g++ -std=c++17 -I/opt/homebrew/include -L/opt/homebrew/lib   cpp/tests/test_wav_
 ```bash
 make test
 ```
-Runs both:
+Runs:
 - `test_wav_to_csv`
 - `test_wav_freq_csv`
+- `test_ai_fft_windowing` (via pytest wrapper)
 
 ### Run pytest wrappers for C++ tools
 ```bash
 pytest cpp/tests
 ```
-These Python tests invoke the compiled binaries (`./wav_to_csv`, `./wav_freq_csv`) and validate generated CSV output.
+Invokes compiled binaries and AI/automated FFT windowing tests, validates generated CSV output.
 
 ---
 
 ## Python Tools
 
-### 1) Compare WAV CSVs (time‑domain only)
-Script: `python/audio/compare_csv.py`  
-Usage:
+### 1) Compare WAV CSVs
 ```bash
 python3 python/audio/compare_csv.py fileA.csv fileB.csv
 ```
-- Overlays two time‑domain WAV CSVs (`Index,Sample`) and shows difference.  
-- **Backends:** NumPy, Pandas, Matplotlib.
 
-### 2) Compare CSVs with Torch (time‑domain or spectrum)
-Script: `python/audio/comparetorch_csv.py`  
-Usage:
+### 2) Compare CSVs with Torch
 ```bash
 python3 python/audio/comparetorch_csv.py fileA.csv fileB.csv [start] [limit]
 ```
-- Accepts **time‑domain** WAV CSVs or **spectrum** CSVs.  
-- Visualization: overlay (blue solid vs orange dashed) + difference (red).  
-- Optional `start` & `limit` to window the comparison.  
-- **Backends:** PyTorch, Matplotlib.
 
-### 3) Compare two WAV files (direct)
-Script: `python/audio/comp_plot_wav_diff.py`  
-Usage:
+### 3) Compare two WAV files directly
 ```bash
 python3 python/audio/comp_plot_wav_diff.py fileA.wav fileB.wav [--zoom Z] [--save out.png]
 ```
-- Loads audio via torchaudio and compares waveforms directly.  
-- Supports PCM **16-bit**, **24-bit**, and **Float32** WAVs.  
-- `--zoom` to focus on a small segment; `--save` to write plot without GUI.  
-- **Backends:** torchaudio, PyTorch, Matplotlib.
 
 ### 4) Video depth (MiDaS)
-Script: `python/video/video_depth_midas.py`  
-Usage:
 ```bash
 python3 python/video/video_depth_midas.py sample.mp4 out_depth.mp4 --model DPT_Hybrid --debug
 ```
-**Flags**
-- `--model` — MiDaS variant:
-  - `DPT_Hybrid` — balance of quality/speed (default recommended).
-  - `DPT_Large` — higher quality, slower.
-  - `MiDaS_small` — fastest, lower quality.
-- `--debug` — verbose logging and optional intermediate outputs.  
-- **Backends:** OpenCV, PyTorch.  
-- **Note:** *MiDaS = Mixed-Domain Attention Stereo depth estimation model (Intel/ETH Zürich, PyTorch implementation).*
 
 ---
 
 ## Python Tests
-
-Run **all Python tests** (audio + video):
+Run all tests:
 ```bash
 pytest python/tests
 ```
-Run an **individual** test:
+Run all C++ tests including AI/automated FFT windowing:
 ```bash
-pytest python/tests/test_comp_plot_wav_diff.py
+pytest cpp/tests
 ```
-
-Included tests:
-- `test_compare_csv.py` — time‑domain CSV overlay/diff (**NumPy/Pandas**).  
-- `test_comparetorch.py` — time‑domain & spectrum CSV overlay/diff (**Torch**).  
-- `test_comp_plot_wav_diff.py` — validates WAV‑to‑WAV comparison (**torchaudio**, Torch).  
-- `test_video_depth_midas.py` — dummy MP4 → depth MP4 (**OpenCV**, Torch, MiDaS).
 
 ---
 
@@ -194,15 +176,17 @@ Included tests:
   - WAV CSV: `Index,Sample`
   - Spectrum CSV: `Frequency,Magnitude`
 - Stereo WAVs are averaged to mono.  
+- AI/automated FFT windowing tests generate test WAVs and compare multiple FFT windows.  
 - On macOS with Homebrew, gtest is commonly under `/opt/homebrew/include` and `/opt/homebrew/lib`.
 
 ## Changelog
-- **2025-08-25** — Updated wav_freq_csv with window support; Python/pytest wrapper for all windows, 1 kHz sine at 8 kHz
-- **2025‑08‑23** — Added `wav_freq_csv.cpp` (WAV → CSV + FFT spectrum), Python spectrum comparison in `comparetorch_csv.py`, **Python video pytest** (`test_video_depth_midas.py`), and **WAV‑to‑WAV pytest** (`test_comp_plot_wav_diff.py`); dedicated tests (C++ gtest + pytest), Makefile automation, README restructuring & clarifications (with dependency table).  
+- **2025‑08‑25** — Updated `wav_freq_csv` with FFT window support; **added AI-assisted FFT windowing tests**; Python/pytest wrapper for all windows, 1 kHz sine at 8 kHz sample rate; updated README to reflect changes.  
+- **2025‑08‑23** — Added `wav_freq_csv.cpp` (WAV → CSV + FFT spectrum), Python spectrum comparison in `comparetorch_csv.py`, Python video pytest (`test_video_depth_midas.py`), and WAV‑to‑WAV pytest (`test_comp_plot_wav_diff.py`).  
 - **2025‑08‑22** — Python audio compare: Torch overlay/diff with start/limit windowing.  
 - **2025‑08‑21** — Python video: MiDaS depth‑estimation script.  
 - **2025‑08‑20** — C++ audio: WAV → CSV converter.  
 - **2025‑08‑18** — Initial setup.
+
 
 ## License
 MIT License
