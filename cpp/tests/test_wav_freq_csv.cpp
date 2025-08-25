@@ -4,6 +4,7 @@
 #include <string>
 #include <cmath>
 #include <cstdlib>
+#include <stdexcept>
 
 std::vector<float> loadCsv(const std::string& path) {
     std::ifstream f(path);
@@ -23,35 +24,68 @@ std::vector<float> loadCsv(const std::string& path) {
     return vals;
 }
 
-TEST(WavFreqCsvTest, GenerateSpectrum) {
-    const char* wav = "sine.wav";
-    const char* csv = "sine.csv";
-    int sampleRate = 8000;
-    int samples = 256;
+void generateSineWaveWav(const std::string& path, int sampleRate, int samples, float freq=1000.0f) {
     std::vector<int16_t> buf(samples);
     for (int i=0;i<samples;i++) {
-        buf[i] = (int16_t)(10000 * sin(2*M_PI*440*i/sampleRate));
+        buf[i] = static_cast<int16_t>(10000 * sin(2*M_PI*freq*i/sampleRate));
     }
-    std::ofstream f(wav, std::ios::binary);
-    f.write("RIFF",4); uint32_t sz = 36+samples*2; f.write((char*)&sz,4); f.write("WAVE",4);
-    f.write("fmt ",4); uint32_t sub=16; f.write((char*)&sub,4); uint16_t fmt=1; f.write((char*)&fmt,2);
-    uint16_t ch=1; f.write((char*)&ch,2); uint32_t sr=sampleRate; f.write((char*)&sr,4);
-    uint32_t br=sr*2; f.write((char*)&br,4); uint16_t ba=2; f.write((char*)&ba,2);
-    uint16_t bps=16; f.write((char*)&bps,2);
-    f.write("data",4); uint32_t dsz=samples*2; f.write((char*)&dsz,4);
-    f.write((char*)buf.data(),dsz); f.close();
+    std::ofstream f(path, std::ios::binary);
+    f.write("RIFF",4);
+    uint32_t chunkSize = 36 + samples*2;
+    f.write(reinterpret_cast<char*>(&chunkSize),4);
+    f.write("WAVE",4);
+    f.write("fmt ",4);
+    uint32_t subChunk1 = 16;
+    f.write(reinterpret_cast<char*>(&subChunk1),4);
+    uint16_t audioFormat = 1;
+    f.write(reinterpret_cast<char*>(&audioFormat),2);
+    uint16_t numChannels = 1;
+    f.write(reinterpret_cast<char*>(&numChannels),2);
+    uint32_t sr = sampleRate;
+    f.write(reinterpret_cast<char*>(&sr),4);
+    uint32_t byteRate = sampleRate*2;
+    f.write(reinterpret_cast<char*>(&byteRate),4);
+    uint16_t blockAlign = 2;
+    f.write(reinterpret_cast<char*>(&blockAlign),2);
+    uint16_t bitsPerSample = 16;
+    f.write(reinterpret_cast<char*>(&bitsPerSample),2);
+    f.write("data",4);
+    uint32_t dataSize = samples*2;
+    f.write(reinterpret_cast<char*>(&dataSize),4);
+    f.write(reinterpret_cast<char*>(buf.data()),dataSize);
+    f.close();
+}
 
-    // Call the compiled binary in project root
-    int ret = std::system(("./wav_freq_csv " + std::string(wav) + " " + csv).c_str());
-    ASSERT_EQ(ret, 0);
+class WavFreqCsvWindowTest : public ::testing::TestWithParam<std::string> {};
 
-    auto samples_csv = loadCsv(csv);
-    ASSERT_EQ(samples_csv.size(), samples);
+TEST_P(WavFreqCsvWindowTest, SpectrumNotZero) {
+    std::string window = GetParam();
+    const std::string wav = "sine.wav";
+    const std::string csv = "sine.csv";
+    const std::string spec_csv = "sine_spectrum.csv";
+    int sampleRate = 8000;
+    int samples = 256;
 
-    std::string specfile = "sine_spectrum.csv";
-    auto mags = loadCsv(specfile);
-    ASSERT_GT(mags.size(), 0);
+    generateSineWaveWav(wav, sampleRate, samples, 1000.0f);
+
+    std::string cmd = "./wav_freq_csv " + wav + " " + csv + " 0 " + window;
+    int ret = std::system(cmd.c_str());
+    ASSERT_EQ(ret, 0) << "Failed for window: " << window;
+
+    auto sample_vals = loadCsv(csv);
+    ASSERT_EQ(sample_vals.size(), static_cast<size_t>(samples));
+
+    auto spectrum_vals = loadCsv(spec_csv);
+    ASSERT_GT(spectrum_vals.size(), 0);
+
     bool any_nonzero = false;
-    for (float v: mags) { if (v!=0.0f) { any_nonzero = true; break; } }
+    for (float v: spectrum_vals) {
+        if (v != 0.0f) { any_nonzero = true; break; }
+    }
     ASSERT_TRUE(any_nonzero);
 }
+
+INSTANTIATE_TEST_SUITE_P(AllWindows,
+                         WavFreqCsvWindowTest,
+                         ::testing::Values("hann","hamming","blackman","rectangular"));
+

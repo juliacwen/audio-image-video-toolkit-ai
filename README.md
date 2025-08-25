@@ -20,7 +20,7 @@ Utilities for working with audio and video data: converting WAV to CSV, generati
 - **C++ Tools**
   - `wav_to_csv.cpp`: WAV → CSV (supports PCM **16-bit**, **24-bit**, and **IEEE Float32**; outputs `Index,Sample`).  
     *Implementation: manual WAV parsing in C++.*
-  - `wav_freq_csv.cpp`: WAV → CSV **and** FFT Spectrum CSV (`Index,Sample` and `Frequency,Magnitude`).  
+  - `wav_freq_csv.cpp`: WAV → CSV **and** FFT Spectrum CSV (`Index,Sample` and `Frequency,Magnitude`) with optional windowing (hann, hamming, blackman, rectangular).  
     *Implementation: manual WAV parsing + FFT using `std::complex`.*
 
 - **Python Audio Tools**
@@ -36,7 +36,7 @@ Utilities for working with audio and video data: converting WAV to CSV, generati
     *Uses **OpenCV** (video I/O), **PyTorch** (MiDaS models).*
 
 - **Tests**
-  - **C++**: GoogleTest (`cpp/tests/test_wav_to_csv.cpp`, `cpp/tests/test_wav_freq_csv.cpp`) and pytest wrappers for binaries (`cpp/tests/test_wav_to_csv.py`, `cpp/tests/test_wav_freq_csv.py`).
+  - **C++**: GoogleTest (`cpp/tests/test_wav_to_csv.cpp`, `cpp/tests/test_wav_freq_csv.cpp`) and pytest wrappers for binaries (`cpp/tests/test_wav_to_csv.py`, `cpp/tests/test_wav_freq_csv.py`); test_wav_freq_csv tests all windows (hann, hamming, blackman, rectangular) and 1 kHz sine at 8 kHz.
   - **Python**: pytest for audio & video tools (`python/tests/`).
 
 ## **Dependencies by Module**
@@ -197,6 +197,7 @@ Included tests:
 - On macOS with Homebrew, gtest is commonly under `/opt/homebrew/include` and `/opt/homebrew/lib`.
 
 ## Changelog
+- **2025-08-25** — Updated wav_freq_csv with window support; Python/pytest wrapper for all windows, 1 kHz sine at 8 kHz
 - **2025‑08‑23** — Added `wav_freq_csv.cpp` (WAV → CSV + FFT spectrum), Python spectrum comparison in `comparetorch_csv.py`, **Python video pytest** (`test_video_depth_midas.py`), and **WAV‑to‑WAV pytest** (`test_comp_plot_wav_diff.py`); dedicated tests (C++ gtest + pytest), Makefile automation, README restructuring & clarifications (with dependency table).  
 - **2025‑08‑22** — Python audio compare: Torch overlay/diff with start/limit windowing.  
 - **2025‑08‑21** — Python video: MiDaS depth‑estimation script.  

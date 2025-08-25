@@ -2,8 +2,9 @@
 //  FileName:      wav_freq_csv.cpp
 //  Copyright (c)  2025  Julia Wen. All Rights Reserved.
 //  Date:          August 23, 2025
-//  Description:   wav_feq_csv.cpp (input.wav output.csv [max_samples])
-//                 Also compute FFT spectrum -> output_spectrum.csv
+//  Description:   wav_freq_csv.cpp (input.wav output.csv [max_samples])
+//                 Computes FFT spectrum -> output_spectrum.csv
+//                 Supports window functions: Hann, Hamming, Blackman, Rectangular
 //=============================================================================
 
 #include <cstdint>
@@ -13,6 +14,7 @@
 #include <vector>
 #include <cmath>
 #include <complex>
+#include <algorithm>
 
 using cd = std::complex<double>;
 const double PI = acos(-1);
@@ -23,10 +25,7 @@ void bitReverse(std::vector<cd>& a) {
     int j = 0;
     for (int i = 1; i < n; i++) {
         int bit = n >> 1;
-        while (j & bit) {
-            j ^= bit;
-            bit >>= 1;
-        }
+        while (j & bit) { j ^= bit; bit >>= 1; }
         j ^= bit;
         if (i < j) std::swap(a[i], a[j]);
     }
@@ -50,20 +49,30 @@ void fft(std::vector<cd>& a, bool invert) {
             }
         }
     }
-    if (invert) {
-        for (cd& x : a) x /= n;
-    }
+    if (invert) for (cd& x : a) x /= n;
 }
 
+// WAV reading helpers
 static uint16_t readU16(std::istream& in){ uint8_t b[2]; in.read((char*)b,2); return b[0] | (b[1]<<8); }
-static uint32_t readU32(std::istream& in){ uint8_t b[4]; in.read((char*)b,4); return uint32_t(b[0]) | (uint32_t(b[1])<<8) | (uint32_t(b[2])<<16) | (uint32_t(b[3])<<24); }
+static uint32_t readU32(std::istream& in){ uint8_t b[4]; in.read((char*)b,4); return uint32_t(b[0]) | (uint32_t(b[1])<<8) 
+| (uint32_t(b[2])<<16) | (uint32_t(b[3])<<24); }
 static int16_t readI16(const uint8_t* p){ return int16_t(p[0] | (p[1]<<8)); }
-static int32_t readI24(const uint8_t* p){ int32_t v = (p[0] | (p[1]<<8) | (p[2]<<16)); if(v & 0x800000) v |= ~0xFFFFFF; return v; }
+static int32_t readI24(const uint8_t* p){ int32_t v = (p[0] | (p[1]<<8) | (p[2]<<16)); if(v & 0x800000) v |= ~0xFFFFFF; 
+return v; }
+
+// Window functions
+double windowFunc(const std::string& win, size_t n, size_t N){
+    if(win=="hann") return 0.5*(1 - cos(2*PI*n/(N-1)));
+    if(win=="hamming") return 0.54 - 0.46*cos(2*PI*n/(N-1));
+    if(win=="blackman") return 0.42 - 0.5*cos(2*PI*n/(N-1)) + 0.08*cos(4*PI*n/(N-1));
+    return 1.0; // rectangular
+}
 
 int main(int argc, char** argv){
-    if(argc<3){ std::cerr<<"Usage: "<<argv[0]<<" input.wav output.csv [max_samples]\n"; return 1; }
+    if(argc<3){ std::cerr<<"Usage: "<<argv[0]<<" input.wav output.csv [max_samples] [window]\n"; return 1; }
     std::string inPath=argv[1], outPath=argv[2];
-    size_t max_samples = (argc>=4)? std::stoul(argv[3]) : 0;
+    std::string window = (argc>=4)? argv[3] : "hann";
+    size_t max_samples = 0;
 
     std::ifstream f(inPath, std::ios::binary);
     if(!f){ std::cerr<<"Open fail: "<<inPath<<"\n"; return 1; }
@@ -104,10 +113,6 @@ int main(int argc, char** argv){
     }
 
     if(!have_fmt || !have_data){ std::cerr<<"Missing fmt/data\n"; return 1; }
-    if(!((fmt==1 && (bps==16 || bps==24)) || (fmt==3 && bps==32))){
-        std::cerr<<"Only PCM 16/24-bit or Float32 supported\n";
-        return 1;
-    }
 
     f.clear(); f.seekg(dataPos);
     std::vector<uint8_t> raw(dataSize);
@@ -152,12 +157,13 @@ int main(int argc, char** argv){
                 sample = (L+R)/2.0;
             }
         }
+        sample *= windowFunc(window, i, N);
         csv<<i<<","<<sample<<"\n";
         samples.push_back(sample);
     }
     csv.close();
 
-    // ==== FFT ====
+    // FFT
     size_t fftN = 1;
     while(fftN < samples.size()) fftN <<= 1;
     std::vector<cd> fa(fftN);
@@ -166,18 +172,14 @@ int main(int argc, char** argv){
 
     fft(fa, false);
 
-    // derive spectrum filename
     std::string specPath = outPath;
     size_t dot = specPath.find_last_of('.');
-    if(dot != std::string::npos) {
-        specPath.insert(dot, "_spectrum");
-    } else {
-        specPath += "_spectrum.csv";
-    }
+    if(dot != std::string::npos) specPath.insert(dot, "_spectrum");
+    else specPath += "_spectrum.csv";
 
     std::ofstream spec(specPath);
     spec<<"Frequency(Hz),Magnitude\n";
-    for(size_t i=0; i<fftN/2; i++){ // only half spectrum
+    for(size_t i=0; i<fftN/2; i++){
         double freq = (double)i * sr / fftN;
         double mag = std::abs(fa[i]);
         spec<<freq<<","<<mag<<"\n";
@@ -188,3 +190,4 @@ int main(int argc, char** argv){
              <<" and "<<specPath<<" ("<<sr<<" Hz)\n";
     return 0;
 }
+
