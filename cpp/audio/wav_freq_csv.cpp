@@ -1,10 +1,9 @@
 //=============================================================================
 //  FileName:      wav_freq_csv.cpp
-//  Copyright (c)  2025  Julia Wen. All Rights Reserved.
-//  Date:          August 23, 2025
-//  Description:   wav_freq_csv.cpp (input.wav output.csv [max_samples])
-//                 Computes FFT spectrum -> output_spectrum.csv
-//                 Supports window functions: Hann, Hamming, Blackman, Rectangular
+//  Author:        Julia Wen
+//  Date:          August 25, 2025
+//  Description:   WAV → CSV + FFT Spectrum
+//                 Added optional windowing support: Hann, Hamming, Blackman, Rectangular
 //=============================================================================
 
 #include <cstdint>
@@ -40,16 +39,28 @@ void fft(std::vector<cd>& a, bool invert) {
         cd wlen(cos(ang), sin(ang));
         for (int i = 0; i < n; i += len) {
             cd w(1);
-            for (int j = 0; j < len / 2; j++) {
-                cd u = a[i + j];
-                cd v = a[i + j + len / 2] * w;
-                a[i + j] = u + v;
-                a[i + j + len / 2] = u - v;
+            for (int j = 0; j < len/2; j++) {
+                cd u = a[i+j], v = a[i+j+len/2]*w;
+                a[i+j] = u+v;
+                a[i+j+len/2] = u-v;
                 w *= wlen;
             }
         }
     }
     if (invert) for (cd& x : a) x /= n;
+}
+
+// Window functions
+enum class WindowType { Rectangular, Hann, Hamming, Blackman };
+
+double window_value(WindowType type, size_t i, size_t N) {
+    switch(type) {
+        case WindowType::Rectangular: return 1.0;
+        case WindowType::Hann:       return 0.5*(1-cos(2*PI*i/(N-1)));
+        case WindowType::Hamming:    return 0.54 - 0.46*cos(2*PI*i/(N-1));
+        case WindowType::Blackman:   return 0.42 - 0.5*cos(2*PI*i/(N-1)) + 0.08*cos(4*PI*i/(N-1));
+    }
+    return 1.0;
 }
 
 // WAV reading helpers
@@ -60,19 +71,19 @@ static int16_t readI16(const uint8_t* p){ return int16_t(p[0] | (p[1]<<8)); }
 static int32_t readI24(const uint8_t* p){ int32_t v = (p[0] | (p[1]<<8) | (p[2]<<16)); if(v & 0x800000) v |= ~0xFFFFFF; 
 return v; }
 
-// Window functions
-double windowFunc(const std::string& win, size_t n, size_t N){
-    if(win=="hann") return 0.5*(1 - cos(2*PI*n/(N-1)));
-    if(win=="hamming") return 0.54 - 0.46*cos(2*PI*n/(N-1));
-    if(win=="blackman") return 0.42 - 0.5*cos(2*PI*n/(N-1)) + 0.08*cos(4*PI*n/(N-1));
-    return 1.0; // rectangular
+WindowType parse_window(const std::string& w) {
+    std::string s = w;
+    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+    if(s=="hann") return WindowType::Hann;
+    if(s=="hamming") return WindowType::Hamming;
+    if(s=="blackman") return WindowType::Blackman;
+    return WindowType::Rectangular;
 }
 
 int main(int argc, char** argv){
-    if(argc<3){ std::cerr<<"Usage: "<<argv[0]<<" input.wav output.csv [max_samples] [window]\n"; return 1; }
+    if(argc<3){ std::cerr<<"Usage: "<<argv[0]<<" input.wav output.csv [window]\n"; return 1; }
     std::string inPath=argv[1], outPath=argv[2];
-    std::string window = (argc>=4)? argv[3] : "hann";
-    size_t max_samples = 0;
+    WindowType window = (argc>=4)? parse_window(argv[3]) : WindowType::Rectangular;
 
     std::ifstream f(inPath, std::ios::binary);
     if(!f){ std::cerr<<"Open fail: "<<inPath<<"\n"; return 1; }
@@ -107,12 +118,14 @@ int main(int argc, char** argv){
             dataSize = sz;
             f.seekg(sz+(sz&1), std::ios::cur);
         }
-        else {
-            f.seekg(sz+(sz&1), std::ios::cur);
-        }
+        else { f.seekg(sz+(sz&1), std::ios::cur); }
     }
 
     if(!have_fmt || !have_data){ std::cerr<<"Missing fmt/data\n"; return 1; }
+    if(!((fmt==1 && (bps==16 || bps==24)) || (fmt==3 && bps==32))){
+        std::cerr<<"Only PCM 16/24-bit or Float32 supported\n";
+        return 1;
+    }
 
     f.clear(); f.seekg(dataPos);
     std::vector<uint8_t> raw(dataSize);
@@ -125,69 +138,55 @@ int main(int argc, char** argv){
     if(!csv){ std::cerr<<"Open output fail: "<<outPath<<"\n"; return 1; }
     csv<<"Index,Sample\n";
 
-    size_t N = (max_samples==0)? frames : std::min(frames, max_samples);
     std::vector<double> samples;
-    samples.reserve(N);
+    samples.reserve(frames);
 
-    for(size_t i=0;i<N;++i){
+    for(size_t i=0;i<frames;++i){
         double sample=0.0;
         if(fmt==1 && bps==16){
             if(ch==1) sample = readI16(&raw[i*2]);
-            else {
-                int32_t L=readI16(&raw[(i*ch+0)*2]);
-                int32_t R=readI16(&raw[(i*ch+1)*2]);
-                sample = (L+R)/2.0;
-            }
+            else { int32_t L=readI16(&raw[(i*ch+0)*2]); int32_t R=readI16(&raw[(i*ch+1)*2]); sample=(L+R)/2.0; }
         }
         else if(fmt==1 && bps==24){
             if(ch==1) sample = readI24(&raw[i*3]);
-            else {
-                int32_t L=readI24(&raw[(i*ch+0)*3]);
-                int32_t R=readI24(&raw[(i*ch+1)*3]);
-                sample = (L+R)/2.0;
-            }
+            else { int32_t L=readI24(&raw[(i*ch+0)*3]); int32_t R=readI24(&raw[(i*ch+1)*3]); sample=(L+R)/2.0; }
         }
         else if(fmt==3 && bps==32){
-            if(ch==1){
-                float v = *reinterpret_cast<const float*>(&raw[i*4]);
-                sample = v;
-            } else {
-                float L = *reinterpret_cast<const float*>(&raw[(i*ch+0)*4]);
-                float R = *reinterpret_cast<const float*>(&raw[(i*ch+1)*4]);
-                sample = (L+R)/2.0;
-            }
+            if(ch==1){ float v = *reinterpret_cast<const float*>(&raw[i*4]); sample = v; }
+            else { float L = *reinterpret_cast<const float*>(&raw[(i*ch+0)*4]); float R = *reinterpret_cast<const 
+float*>(&raw[(i*ch+1)*4]); sample=(L+R)/2.0; }
         }
-        sample *= windowFunc(window, i, N);
+        // Apply window
+        sample *= window_value(window, i, frames);
+
         csv<<i<<","<<sample<<"\n";
         samples.push_back(sample);
     }
     csv.close();
 
     // FFT
-    size_t fftN = 1;
-    while(fftN < samples.size()) fftN <<= 1;
+    size_t fftN = 1; while(fftN < samples.size()) fftN <<=1;
     std::vector<cd> fa(fftN);
-    for(size_t i=0;i<samples.size();i++) fa[i] = samples[i];
-    for(size_t i=samples.size(); i<fftN; i++) fa[i] = 0;
+    for(size_t i=0;i<samples.size();i++) fa[i]=samples[i];
+    for(size_t i=samples.size();i<fftN;i++) fa[i]=0;
 
-    fft(fa, false);
+    fft(fa,false);
 
     std::string specPath = outPath;
     size_t dot = specPath.find_last_of('.');
-    if(dot != std::string::npos) specPath.insert(dot, "_spectrum");
+    if(dot != std::string::npos) specPath.insert(dot,"_spectrum");
     else specPath += "_spectrum.csv";
 
     std::ofstream spec(specPath);
     spec<<"Frequency(Hz),Magnitude\n";
-    for(size_t i=0; i<fftN/2; i++){
-        double freq = (double)i * sr / fftN;
+    for(size_t i=0;i<fftN/2;i++){
+        double freq = (double)i*sr/fftN;
         double mag = std::abs(fa[i]);
         spec<<freq<<","<<mag<<"\n";
     }
     spec.close();
 
-    std::cout<<"Wrote "<<N<<" samples to "<<outPath
-             <<" and "<<specPath<<" ("<<sr<<" Hz)\n";
+    std::cout<<"Wrote "<<samples.size()<<" samples to "<<outPath<<" and "<<specPath<<" ("<<sr<<" Hz)\n";
     return 0;
 }
 
