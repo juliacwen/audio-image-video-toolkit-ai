@@ -9,3 +9,5 @@ scipy
 timm
 imageio
 imageio-ffmpeg
+soundfile
+tensorflow==2.20.0

@@ -3,10 +3,9 @@ from pathlib import Path
 
 def test_ai_fft_windowing():
     """
-    Pytest wrapper to run AI-assisted FFT windowing test.
-    Executes ai_test_all_windows.py and asserts successful completion.
+    Pytest wrapper to run full AI neural network spectrum analysis workflow.
     """
-    script = Path(__file__).parent / "ai_tools" / "ai_test_all_windows.py"
+    script = Path(__file__).parent / "ai_tools" / "ai_fft_workflow.py"
     ret = subprocess.run(["python3", str(script)])
     assert ret.returncode == 0
 
