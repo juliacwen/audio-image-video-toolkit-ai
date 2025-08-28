@@ -1,8 +1,8 @@
-# Audio & Video Tools
+# Audio-Image-Video-Toolkit-AI
 
 **Author:** Julia Wen (<wendigilane@gmail.com>)
 
-Utilities for working with audio and video data: converting WAV to CSV, generating FFT spectra with multiple window types, running end-to-end AI-assisted FFT workflows that generate test WAVs, train a small MLP on synthetic spectra, and predict tone probabilities, performing automated FFT windowing tests with rectangular, Hann, Hamming, and Blackman windows, and running MiDaS depth estimation on videos
+Utilities for working with audio, image and video data: converting WAV to CSV, generating FFT spectra with multiple window types, running end-to-end AI-assisted FFT workflows that generate test WAVs, train a small MLP on synthetic spectra, and predict tone probabilities, performing automated FFT windowing tests with rectangular, Hann, Hamming, and Blackman windows, and running MiDaS depth estimation on videos
 
 ## Table of Contents
 - [Features](#features)
