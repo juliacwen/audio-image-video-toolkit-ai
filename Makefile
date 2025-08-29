@@ -9,17 +9,17 @@ TESTS = test_wav_to_csv test_wav_freq_csv
 all: $(TOOLS) $(TESTS)
 
 # Tools
-wav_to_csv: cpp/audio/wav_to_csv.cpp
+wav_to_csv: audio/cpp/src/wav_to_csv.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $< -lm
 
-wav_freq_csv: cpp/audio/wav_freq_csv.cpp
+wav_freq_csv: audio/cpp/src/wav_freq_csv.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $< -lm
 
 # Tests
-test_wav_to_csv: cpp/tests/test_wav_to_csv.cpp wav_to_csv
+test_wav_to_csv: audio/cpp/tests/test_wav_to_csv.cpp wav_to_csv
 	$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS)
 
-test_wav_freq_csv: cpp/tests/test_wav_freq_csv.cpp wav_freq_csv
+test_wav_freq_csv: audio/cpp/tests/test_wav_freq_csv.cpp wav_freq_csv
 	$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS)
 
 # Run all tests
