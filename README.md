@@ -5,13 +5,13 @@ This repository contains projects for **Audio**, **Image**, and **Video** proces
 
 ## Features: 
 
-Audio: Converting WAV to CSV, generating FFT spectra with multiple window types, running end-to-end AI-assisted FFT workflows that generate test WAVs, train a small MLP on synthetic spectra, and predict tone probabilities, performing automated FFT windowing tests with rectangular, Hann, Hamming, and Blackman windows.
+**Audio**: Converting WAV to CSV, generating FFT spectra with multiple window types, running end-to-end AI-assisted FFT workflows that generate test WAVs, train a small MLP on synthetic spectra, and predict tone probabilities, performing automated FFT windowing tests with rectangular, Hann, Hamming, and Blackman windows.
 
-Image: Crescent detection in images:
+**Image**: Crescent detection in images:
 - `detect_crescent_classical.py`: Uses classical HOG features and a linear SVM for crescent detection.
 - `predict_crescent.py`: Uses machine learning with data augmentation, SVM, and optional image display for improved prediction and probability estimates.
 
-Video: Running MiDaS depth estimation on videos
+**Video**: Running MiDaS depth estimation on videos
 
 ## Table of Contents
 
@@ -23,7 +23,6 @@ Video: Running MiDaS depth estimation on videos
 - [Build](#build)  
 - [Run](#run)  
 
-```
 ## Setup
 
 ### 1. Clone the repository
@@ -102,7 +101,7 @@ Audio/
         ├── test_compare_csv.py
         ├── test_comparetorch.py
         └── test_comp_plot_wav_diff.py
-
+```
 
 ##  Requirements
 
@@ -160,7 +159,7 @@ Image/
         └── dataset/
             ├── crescent/
             └── no_crescent/
-
+```
 ### Requirements
 opencv-python   # image loading and preprocessing
 numpy           # array manipulation
@@ -189,7 +188,7 @@ Video/
     │   └── video_depth_midas.py
     └── tests/
         └── test_video_depth_midas.py
-
+```
 ### Requirements
 opencv-python   # video reading and processing
 torch            # PyTorch for model inference
