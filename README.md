@@ -104,7 +104,7 @@ Audio/
         └── test_comp_plot_wav_diff.py
 
 
-## Requirements
+##  Requirements
 
 The audio scripts depend on:  
 - **NumPy, SciPy** – numerical and signal processing  
@@ -231,8 +231,6 @@ python video_depth_midas.py --video path/to/video.mp4
 - Image augmentation is applied during training to improve model robustness.
 - The audio scripts generate CSVs, perform FFT-based analysis, and include AI-based audio processing tools.
 - Video scripts perform depth estimation from video frames using pre-trained models.
-
-## Notes
 - WAV reader supports PCM **16‑bit**, **24‑bit**, and **Float32**.  
 - CSV formats:
   - WAV CSV: `Index,Sample`
