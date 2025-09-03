@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-predict_crescent_pytorch_svm.py
-
+predict_crescent_pytorch.py
+Author: Julia Wen
+Date: 2025-09-02
+Description:
 HOG -> SVM (sklearn) wrapped in PyTorch-friendly script:
  - Uses original augmentation only for training
  - Computes HOG features (grayscale, resized 128x128, same params)
