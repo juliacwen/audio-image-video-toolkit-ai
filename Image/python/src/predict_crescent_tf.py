@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-predict_crescent_fixed.py
-
-Fixed, robust HOG -> SVM pipeline that mirrors the original workflow but
-corrects bugs that caused:
- - augmented images shown in prediction output instead of originals
- - black images / bad ranges
- - extreme 1.00 probabilities caused by earlier bad implementations
+predict_crescent_tf.py
+Author: Julia Wen
+Date: 2025-09-02
+Description:
+TensorFlow CNN classifier with data augmentation.
 
 Usage:
-    python predict_crescent_fixed.py            # train and show training predictions
-    python predict_crescent_fixed.py --no-display
-    python predict_crescent_fixed.py --image /path/to/new.jpg
+    python predict_crescent_tf.py            # train and show training predictions
+    python predict_crescent_tf.py --no-display
+    python predict_crescent_tf.py --image /path/to/new.jpg
 """
 
 import os
