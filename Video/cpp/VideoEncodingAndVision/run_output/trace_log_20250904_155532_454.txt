@@ -1,2 +1,0 @@
-[TRACE] Frame 0 | avg=(0.000513531,-0.00219026) | clippedAvg=(0.000513531,-0.00219026) | smooth=(0,0) | pos=(400,300) | maxFlowMag=3.38746 | contribPts=921600 | meanMag=0.0187205
-[TRACE] Frame 30 | avg=(-0.00769263,0.266404) | clippedAvg=(-0.00769263,0.266404) | smooth=(0.00474833,0.0774599) | pos=(396,124) | maxFlowMag=5.51354 | contribPts=921600 | meanMag=0.3325
