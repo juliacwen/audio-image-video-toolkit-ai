@@ -2,7 +2,23 @@
 
 **Author:** Julia Wen (<wendigilane@gmail.com>)
 
-## Quick Start
+## Overview
+
+This folder contains scripts for **crescent moon detection and synthetic image generation**:
+
+- **Detection approaches:**
+  - `predict_crescent.py` – Python SVM with HOG + augmentation  
+  - `predict_crescent_pytorch.py` – PyTorch-based SVM classifier using HOG features
+  - `predict_crescent_tf.py` – TensorFlow CNN classifier with data augmentation
+  - `detect_crescent_classical.py` – Classical HOG + SVM approach
+  - `predict_crescent_vit.py` – Vision Transformer-based crescent prediction
+
+- **Synthetic image generation:**  
+  - `generate_crescent_images.py` – Stable Diffusion-based crescent/no-crescent images (CPU/CUDA/MPS), with internal negative prompts and logging. Includes **Safety Checker note for quick local testing**.
+
+---
+
+## Quick Start / Installation
 
 ```bash
 # 1. Create virtual environment
@@ -12,48 +28,53 @@ venv\Scripts\activate         # Windows
 
 # 2. Install dependencies
 pip install -r requirements.txt
+```
 
-# 3. Prepare dataset
+- Dependencies include: `numpy`, `scikit-learn`, `scikit-image`, `matplotlib`, `joblib`, `torch`, `torchvision`, `torchaudio`, `tensorflow`, `opencv-python`, `imageio`, `imageio-ffmpeg`, `soundfile` (optional), `timm` (optional).
+
+---
+
+## Quick Start Usage Examples
+
+```bash
+# Prepare dataset
 #   dataset/crescent/  → crescent moon images
 #   dataset/no_crescent/ → images without crescent
 
-# 4. Train and predict on dataset using PyTorch + SVM
+# Train and predict on dataset using PyTorch + SVM
 python3 predict_crescent_pytorch.py
 
-# 5. Train and predict on dataset using TensorFlow + CNN
+# Train and predict on dataset using TensorFlow + CNN
 python3 predict_crescent_tf.py
 
-# 6. Predict a single new image with PyTorch
+# Predict a single new image
 python3 predict_crescent_pytorch.py --image path/to/image.jpg
-
-# 7. Predict a single new image with TensorFlow
 python3 predict_crescent_tf.py --image path/to/image.jpg
 
-# 8. Disable plotting
+# Disable plotting
 python3 predict_crescent_pytorch.py --no-display
 python3 predict_crescent_tf.py --no-display
+
+# Vision Transformer Demo
+python3 predict_crescent_vit.py
+python3 predict_crescent_vit.py --image path/to/image.jpg
+
+# Generative AI Image Generation
+python3 generate_crescent_images.py
 ```
-
-**Notes:**
-
-- Only **original images** are displayed; augmented images are used for training.
-- Trained **PyTorch SVM model** and **scaler** are saved as:
-  - `crescent_moon_logreg.pt`
-  - `crescent_moon_scaler.pkl`
-- Trained **TensorFlow CNN model** is saved as:
-  - `crescent_moon_cnn.h5`
-- These models can be used for new predictions without retraining.
 
 ---
 
 ## Crescent Moon Detection
 
-This repository provides **three approaches** for detecting crescent moons in images:
+This repository provides **six approaches** for detecting crescent moons in images:
 
-1. **`predict_crescent.py`** – Augmented HOG + SVM (scikit-learn).
-2. **`predict_crescent_pytorch.py`** – PyTorch-based SVM classifier using augmented HOG features.
-3. **`predict_crescent_tf.py`** – TensorFlow CNN classifier with data augmentation.
-4. **`detect_crescent_classical.py`** – Classical HOG + SVM approach.
+1. `predict_crescent.py` – Augmented HOG + SVM (scikit-learn).
+2. `predict_crescent_pytorch.py` – PyTorch-based SVM classifier using augmented HOG features.
+3. `predict_crescent_tf.py` – TensorFlow CNN classifier with data augmentation.
+4. `detect_crescent_classical.py` – Classical HOG + SVM approach.
+5. `predict_crescent_vit.py` – Vision Transformer-based crescent prediction.
+6. `generate_crescent_images.py` – Synthetic crescent/no-crescent image generator using Stable Diffusion.
 
 All scripts train on a dataset of `crescent` vs `no_crescent` images and output confidence scores.
 
@@ -75,12 +96,13 @@ All scripts train on a dataset of `crescent` vs `no_crescent` images and output 
 ## 2. `predict_crescent_pytorch.py` (PyTorch SVM)
 
 - Uses **PyTorch** for handling data and training.
-- Extracts **HOG features** with augmentation for training.
+- Extracts **HOG features** from images, with optional augmentation.
 - Scales features with **StandardScaler**.
-- Trains a **logistic regression/SVM** classifier in PyTorch.
+- Trains a **logistic regression / SVM classifier** (PyTorch implementation).
 - Only original images are displayed.
 - Supports **external image prediction** with `--image`.
 - Saves **model** and **scaler** (`crescent_moon_logreg.pt` and `crescent_moon_scaler.pkl`).
+- Optional plotting can be disabled with `--no-display`.
 
 ---
 
@@ -108,6 +130,37 @@ All scripts train on a dataset of `crescent` vs `no_crescent` images and output 
 
 ---
 
+## 5. `predict_crescent_vit.py` (Vision Transformer)
+
+- Uses a **Vision Transformer (ViT)** to predict crescent moons in images.
+- Supports **predicting a single external image**.
+- Optional display or logging handled internally.
+
+---
+
+## 6. `generate_crescent_images.py` (Synthetic Image Generation)
+
+- Generates synthetic **crescent and no-crescent moon images** using Stable Diffusion.
+- Supports CPU, CUDA, and Apple MPS devices.
+- Uses **internal negative prompts** to reduce full moon outputs.
+- Logs image metadata (seed, filename, label) in `generation_log.csv`.
+- Handles Ctrl-C gracefully.
+
+**Safety Checker Disabled:**
+
+- The script does **not enable the Hugging Face safety checker**.
+- You may see a warning:
+
+```
+You have disabled the safety checker...
+```
+
+- This is **for quick local testing**.
+- If you intend to **share images publicly or use them in a service**, you **must enable a safety checker** or filter images manually, according to the Stable Diffusion license.
+- Reference: [Hugging Face Diffusers Safety Checker](https://github.com/huggingface/diffusers/pull/254)
+
+---
+
 ## Dataset Structure
 
 ```text
@@ -124,25 +177,6 @@ dataset/
 
 - Images can be `.jpg`, `.png`, `.jpeg`, `.bmp`, `.tif`, or `.tiff`.
 - Place images for each class in the corresponding folder.
-
----
-
-## Installation
-
-```bash
-python3 -m venv venv
-source venv/bin/activate      # macOS/Linux
-venv\Scripts\activate         # Windows
-pip install -r requirements.txt
-```
-
-**Dependencies include:**
-
-- `numpy`, `scikit-learn`, `scikit-image`, `matplotlib`, `joblib`
-- `torch`, `torchvision`, `torchaudio` (PyTorch)
-- `tensorflow` (TensorFlow)
-- `opencv-python`, `imageio`, `imageio-ffmpeg`, `soundfile` (optional)
-- `timm` (optional for deep feature extraction)
 
 ---
 
