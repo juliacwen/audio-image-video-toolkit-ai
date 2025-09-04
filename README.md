@@ -10,7 +10,7 @@ This repository contains projects for **Audio**, **Image**, and **Video** proces
 
 **Image**: Crescent detection in images, with multiple classical and machine learning approaches and dataset generation.
 
-**Video**: C++ modules for motion estimation, video encoding, depth estimation, and trajectory analysis.
+**Video**: C++ modules for motion estimation, video encoding, depth estimation, trajectory analysis, plus Python scripts for video depth estimation.
 
 ## Table of Contents
 
@@ -160,13 +160,14 @@ python predict_crescent_vit.py
 
 ## Video Processing
 
-Contains C++ modules for motion estimation, video encoding, depth estimation, and trajectory analysis.
+Contains C++ modules for motion estimation, video encoding, depth estimation, trajectory analysis, **plus Python scripts for video depth estimation**.
 
 ### Notes
 
 - `video_common`: Shared utilities for encoding and motion analysis  
 - `video_encoding`: Block matching, frame prediction, motion estimation, residual computation  
 - `video_motion_and_depth`: Stereo depth computation, motion-based trajectory estimation, VIO demo scripts  
+- Python scripts: `video_depth_midas.py` for depth estimation
 
 ### Usage
 
