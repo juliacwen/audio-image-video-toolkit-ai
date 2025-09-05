@@ -7,8 +7,8 @@
  *              and combined log files. Verbose output via -v or --verbose.
  * Return: 0  -> success
  *         -1 -> error (cannot open camera or log files)
- * Author: [Your Name]
- * Date: 2025-09-04
+ * Author: Julia Wen wendigilane@gmail.com
+ * Date: 2025-09-05
  ******************************************************************************/
 
 #include <opencv2/opencv.hpp>
@@ -21,18 +21,17 @@
 #include <filesystem>
 #include <string>
 
-// =================== Constants ===================
-const int TRAJ_WIDTH         = 800;
-const int TRAJ_HEIGHT        = 600;
-const cv::Point2f START_POS(TRAJ_WIDTH/2.f, TRAJ_HEIGHT/2.f);
-const int TRAJ_CIRCLE_RADIUS = 2;
-const cv::Scalar TRAJ_COLOR(0, 255, 0);
-const int ESC_KEY            = 27;
-const int SHIFT_PIXELS       = 15;       // stronger simulated right camera shift
-const int TRAJ_DISPLAY_SCALE = 4;        // Downscale trajectory overlay
-const int FPS_FALLBACK       = 20;
-const float FLOW_SCALE       = 20.f;     // Amplify flow for visible trajectory
-const float DEPTH_MAX_VALUE  = 255.0f;   // Maximum depth value for scaling
+// =================== Constants (file-local) ===================
+inline constexpr int TRAJ_WIDTH         = 800;
+inline constexpr int TRAJ_HEIGHT        = 600;
+inline const cv::Point2f START_POS(TRAJ_WIDTH/2.f, TRAJ_HEIGHT/2.f);
+inline constexpr int TRAJ_CIRCLE_RADIUS = 2;
+inline const cv::Scalar TRAJ_COLOR(0, 255, 0);
+inline constexpr int SHIFT_PIXELS       = 15;       // simulated right camera shift
+inline constexpr int TRAJ_DISPLAY_SCALE = 4;        // downscale trajectory overlay
+inline constexpr int FPS_FALLBACK       = 20;
+inline constexpr float FLOW_SCALE       = 20.f;     // amplify flow for visible trajectory
+inline constexpr float DEPTH_MAX_VALUE  = 255.0f;   // maximum depth for scaling
 // ==================================================
 
 struct Options {
@@ -40,10 +39,10 @@ struct Options {
 };
 
 Options parseArgs(int argc, char** argv) {
-    Options opt;
-    for (int i=1; i<argc; i++) {
+    Options opt{};
+    for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
-        if (arg=="-v" || arg=="--verbose") opt.verbose = true;
+        if (arg == "-v" || arg == "--verbose") opt.verbose = true;
     }
     return opt;
 }
@@ -53,25 +52,22 @@ int main(int argc, char** argv) {
 
     cv::VideoCapture capLeft(0);
     if (!capLeft.isOpened()) {
-        std::cerr << "Error: Cannot open camera." << std::endl;
+        LOG(LogLevel::ERROR, "Cannot open camera.");
         return -1;
     }
 
     // Prepare output directories and log files
     std::filesystem::create_directories("vio_output");
     std::string ts = getTimestamp();
-    std::string csvPath  = "vio_output/motion_log_" + ts + ".csv";
-    std::string txtPath  = "vio_output/trace_log_" + ts + ".txt";
-    std::string combPath = "vio_output/combined_log_" + ts + ".log";
-    std::string outVideoPath = "vio_output/vio_trajectory_" + ts + ".avi";
+    std::ofstream csvFile("vio_output/motion_log_" + ts + ".csv");
+    std::ofstream traceFile("vio_output/trace_log_" + ts + ".txt");
+    std::ofstream combFile("vio_output/combined_log_" + ts + ".log");
 
-    std::ofstream csvFile(csvPath);
-    std::ofstream traceFile(txtPath);
-    std::ofstream combFile(combPath);
     if (!csvFile.is_open() || !traceFile.is_open() || !combFile.is_open()) {
-        std::cerr << "Error: cannot open log files" << std::endl;
+        LOG(LogLevel::ERROR, "Cannot open log files.");
         return -1;
     }
+
     csvFile << "frame,timestamp_ms,pos_x,pos_y,avg_flow_x,avg_flow_y,avg_depth\n";
     combFile << "CSV_HEADER: frame,timestamp_ms,pos_x,pos_y,avg_flow_x,avg_flow_y,avg_depth\n";
 
@@ -80,7 +76,9 @@ int main(int argc, char** argv) {
     double fps = capLeft.get(cv::CAP_PROP_FPS);
     if (fps <= 0) fps = FPS_FALLBACK;
 
-    cv::VideoWriter writer(outVideoPath, cv::VideoWriter::fourcc('M','J','P','G'), fps, cv::Size(width,height));
+    cv::VideoWriter writer("vio_output/vio_trajectory_" + ts + ".avi",
+                           cv::VideoWriter::fourcc('M','J','P','G'),
+                           fps, cv::Size(width, height));
 
     cv::Mat prevLeft, prevGray;
     capLeft >> prevLeft;
@@ -122,25 +120,24 @@ int main(int argc, char** argv) {
         // Draw trajectory
         cv::circle(traj, position, TRAJ_CIRCLE_RADIUS, TRAJ_COLOR, -1);
 
-        // Window 1: Live camera feed with trajectory overlay
+        // Display with overlay
         cv::Mat display = leftFrame.clone();
         cv::Mat trajSmall;
         cv::resize(traj, trajSmall, cv::Size(width/TRAJ_DISPLAY_SCALE, height/TRAJ_DISPLAY_SCALE));
         trajSmall.copyTo(display(cv::Rect(display.cols-trajSmall.cols-10, 10, trajSmall.cols, trajSmall.rows)));
 
-        // Draw flow arrows on display
+        // Draw flow arrows
         for(int y=0; y<flow.rows; y+=10){
             for(int x=0; x<flow.cols; x+=10){
                 const cv::Point2f f = flow.at<cv::Point2f>(y,x);
-                cv::line(display, cv::Point(x,y), cv::Point(cvRound(x+f.x*FLOW_SCALE), cvRound(y+f.y*FLOW_SCALE)), cv::Scalar(0,0,255));
+                cv::line(display, cv::Point(x,y),
+                         cv::Point(cvRound(x+f.x*FLOW_SCALE), cvRound(y+f.y*FLOW_SCALE)),
+                         cv::Scalar(0,0,255));
             }
         }
 
         cv::imshow("VIO Live Feed", display);
-
-        // Window 2: Full trajectory visualization
         cv::imshow("Trajectory", traj);
-
         if (writer.isOpened()) writer.write(display);
 
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -163,7 +160,7 @@ int main(int argc, char** argv) {
                  << "," << avgFlow[0] << "," << avgFlow[1] << "," << avgDepth[0] << "\n";
 
         int key = cv::waitKey(1);
-        if (key == ESC_KEY) break;
+        if (key == static_cast<int>(KEY_EXIT_ESC)) break;
 
         prevGray = leftGray.clone();
         frameCount++;
@@ -178,3 +175,4 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+

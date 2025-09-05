@@ -1,90 +1,54 @@
 /******************************************************************************
  * File: video_block_matching.cpp
  * Description:
- *   Stereo disparity demonstration using classical block matching (StereoBM).
- *   NOTE: Uses ONLY ONE CAMERA. The "right" image is simulated by shifting
- *   the captured frame horizontally. The disparity results reflect only this
- *   artificial shift, NOT real-world depth.
- *
- *   Workflow:
- *     - Capture frame from camera
- *     - Convert to grayscale (left)
- *     - Create simulated "right" frame by shifting left
- *     - Run block matching (StereoBM)
- *     - Display original and disparity map in separate windows
- *     - Save disparity output with overlay (timestamp, FPS, frame count)
- *
- * Author: Julia Wen wendigilane@gmail.com
- * Date: 2025-09-04
+ *   Stereo disparity demo using classical block matching (StereoBM).
+ *   Right image is simulated by shifting the left image horizontally.
+ *   Disparity results reflect this artificial shift, NOT real depth.
+ * Author: Julia Wen
+ * Date: 2025-09-05
  ******************************************************************************/
 
 #include "../video_common/inc/video_common.h"
 #include <opencv2/opencv.hpp>
 #include <iostream>
-#include <chrono>
-#include <ctime>
-#include <csignal>
 
-// Logging levels
-enum LogLevel { NONE = 0, INFO = 1, WARNING = 2, ERROR = 3 };
-LogLevel logLevel = NONE;
-
-#define LOG(level, msg) \
-    if (logLevel != NONE && level >= logLevel) { \
-        std::cout << msg << std::endl; \
-    }
-
-// Constants to replace magic numbers
-const int ESC_KEY = 27;
-const int SHIFT_PIXELS = 4;
-const int NUM_DISPARITIES = 16 * 5; // multiple of 16
-const int BLOCK_SIZE = 15;
-const int VIDEO_FPS = 20;
-const int LOG_INTERVAL = 30;
-const int MAX_PIXEL_VALUE = 255;
-
-// Global flag for Ctrl-C
-volatile std::sig_atomic_t stopFlag = 0;
-
-// Signal handler for Ctrl-C
-void handleSigInt(int) {
-    stopFlag = 1;
-}
+inline constexpr int SHIFT_PIXELS = 4;            // artificial stereo baseline
 
 int main(int argc, char** argv) {
-    // Parse -v argument
-    for (int i = 1; i < argc; i++) {
+    // Parse -v argument for logging
+    for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "-v" && i + 1 < argc) {
-            int lvl = std::stoi(argv[i+1]);
-            if (lvl >= 1 && lvl <= 3) logLevel = static_cast<LogLevel>(lvl);
+            int lvl = std::stoi(argv[i + 1]);
+            if (lvl >= static_cast<int>(LogLevel::INFO) &&
+                lvl <= static_cast<int>(LogLevel::ERROR))
+            {
+                logLevel = static_cast<LogLevel>(lvl);
+            }
         }
     }
 
-    // Register Ctrl-C signal
+    // Register Ctrl-C
     std::signal(SIGINT, handleSigInt);
+
+    LOG(LogLevel::INFO, "=== BLOCK MATCHING INITIALIZED (StereoBM) ===");
 
     cv::VideoCapture cap(0);
     if (!cap.isOpened()) {
-        LOG(ERROR, "[ERROR] Cannot open camera");
+        LOG(LogLevel::ERROR, "Cannot open camera");
         return -1;
     }
-    LOG(INFO, "[INFO] Camera opened successfully");
+    LOG(LogLevel::INFO, "Camera opened successfully");
 
     cv::Mat frame, gray, grayShifted;
 
     cv::Ptr<cv::StereoBM> stereoBM = cv::StereoBM::create(NUM_DISPARITIES, BLOCK_SIZE);
+    LOG(LogLevel::INFO, "Block size = " << BLOCK_SIZE
+              << ", search range = " << NUM_DISPARITIES
+              << " disparities. NOTE: Right image simulated by shifting left image.");
 
-    LOG(INFO, "=== BLOCK MATCHING INITIALIZED (StereoBM) ===");
-    LOG(INFO, "[INFO] Block size = " << BLOCK_SIZE
-              << ", search range = " << NUM_DISPARITIES << " disparities.");
-    LOG(INFO, "[INFO] NOTE: Right image is simulated by shifting left image.");
-    LOG(INFO, "=============================================");
-
-    // Create windows explicitly
     cv::namedWindow("Original (Left)", cv::WINDOW_AUTOSIZE);
     cv::namedWindow("Disparity Map", cv::WINDOW_AUTOSIZE);
 
-    // VideoWriter
     cv::VideoWriter writer;
     bool writerInitialized = false;
     std::string outFile = "video_block_output.avi";
@@ -95,11 +59,11 @@ int main(int argc, char** argv) {
     while (!stopFlag) {
         cap >> frame;
         if (frame.empty()) {
-            LOG(WARNING, "[WARNING] Empty frame captured");
+            LOG(LogLevel::WARNING, "Empty frame captured");
             continue;
         }
 
-        frameCount++;
+        ++frameCount;
         cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
 
         // Simulated right frame
@@ -129,11 +93,11 @@ int main(int argc, char** argv) {
             writer.open(outFile, cv::VideoWriter::fourcc('M','J','P','G'),
                         VIDEO_FPS, disparity8U.size(), false);
             if (!writer.isOpened()) {
-                LOG(ERROR, "[ERROR] Could not open " << outFile << " for writing");
+                LOG(LogLevel::ERROR, "Could not open " << outFile << " for writing");
                 return -1;
             }
             writerInitialized = true;
-            LOG(INFO, "[INFO] VideoWriter initialized (" << outFile << ")");
+            LOG(LogLevel::INFO, "VideoWriter initialized (" << outFile << ")");
         }
 
         // Write video
@@ -143,7 +107,7 @@ int main(int argc, char** argv) {
         if (frameCount % LOG_INTERVAL == 0) {
             double minVal, maxVal;
             cv::minMaxLoc(disparity16S, &minVal, &maxVal);
-            LOG(INFO, "[FRAME " << frameCount << "] "
+            LOG(LogLevel::INFO, "[FRAME " << frameCount << "] "
                       << "Resolution=" << frame.cols << "x" << frame.rows
                       << " | FPS=" << fps
                       << " | Disparity[min=" << minVal
@@ -155,8 +119,8 @@ int main(int argc, char** argv) {
         cv::imshow("Disparity Map", disparity8U);
 
         char key = (char)cv::waitKey(1);
-        if (key == ESC_KEY) {
-            LOG(INFO, "[INFO] ESC pressed. Exiting...");
+        if (key == KEY_EXIT_ESC) {
+            LOG(LogLevel::INFO, "ESC pressed. Exiting...");
             break;
         }
     }
@@ -164,7 +128,8 @@ int main(int argc, char** argv) {
     cap.release();
     writer.release();
     cv::destroyAllWindows();
-    LOG(INFO, "[INFO] Finished. Video saved to " << outFile);
+    LOG(LogLevel::INFO, "Finished. Video saved to " << outFile);
+
     return 0;
 }
 

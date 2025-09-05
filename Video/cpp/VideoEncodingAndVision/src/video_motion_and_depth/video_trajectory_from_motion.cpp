@@ -3,10 +3,11 @@
  * Description: Tracks average motion in video frames and visualizes trajectory.
  *              Supports live display, video recording, snapshots, and detailed logging.
  *              Smooths flow over a sliding window, clips extreme motion vectors.
+ *              Fully modernized for C++17: file-local constants, chrono, filesystem, and smart usage.
  * Return: 0  -> success
  *         -1 -> error (cannot open camera or log files)
- * Author: [Your Name]
- * Date: 2025-09-04
+ * Author: Julia Wen wendigilane@gmail.com
+ * Date: 2025-09-05
  ******************************************************************************/
 
 #include <opencv2/opencv.hpp>
@@ -22,28 +23,28 @@
 #include <csignal>
 #include <algorithm>
 
-// =================== Constants ===================
-const int DEFAULT_TRAJ_WIDTH  = 800;
-const int DEFAULT_TRAJ_HEIGHT = 600;
-const double DEFAULT_FPS      = 30.0;
-const float DEFAULT_MOTION_THRESH = 0.01f;
+// =================== Constants (file-local) ===================
+const int DEFAULT_TRAJ_WIDTH        = 800;
+const int DEFAULT_TRAJ_HEIGHT       = 600;
+const double DEFAULT_FPS            = 30.0;
+const float DEFAULT_MOTION_THRESH   = 0.01f;
 const float DEFAULT_MAX_FLOW_THRESH = 10.0f;
-const int LINE_THICKNESS      = 2;
-const int CIRCLE_RADIUS       = 3;
-const int SNAPSHOT_INTERVAL   = 30; // frames
-const int TRAJ_DISPLAY_SCALE  = 4;  // downscale trajectory overlay
-const int ESC_KEY             = 27;
-// ==================================================
+const int LINE_THICKNESS            = 2;
+const int CIRCLE_RADIUS             = 3;
+const int SNAPSHOT_INTERVAL         = 30; // frames
+const int TRAJ_DISPLAY_SCALE        = 4;  // downscale trajectory overlay
+// =============================================================
 
+// Running flag
 static volatile bool g_running = true;
 void signalHandler(int) { g_running = false; }
 
-// still keep now_string() for unique filenames
+// Helper: generate timestamp string for unique filenames
 static std::string now_string() {
     using namespace std::chrono;
-    auto t = std::chrono::system_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(t.time_since_epoch()) % 1000;
-    std::time_t tt = std::chrono::system_clock::to_time_t(t);
+    auto t = system_clock::now();
+    auto ms = duration_cast<milliseconds>(t.time_since_epoch()) % 1000;
+    std::time_t tt = system_clock::to_time_t(t);
     std::tm tm = *std::localtime(&tt);
     char buf[64];
     std::strftime(buf, sizeof(buf), "%Y%m%d_%H%M%S", &tm);
@@ -52,6 +53,7 @@ static std::string now_string() {
     return std::string(out);
 }
 
+// Command-line options
 struct Options {
     std::string input = "0";
     bool saveVideo = true;
@@ -231,7 +233,7 @@ int main(int argc, char** argv) {
                 <<","<<meanMag<<"\n";
 
         int key=cv::waitKey(1);
-        if(key==ESC_KEY) break;
+        if(key==27) break; // ESC to exit
         if(key=='s'){
             std::string snapPath=opt.outDir+"/snapshot_"+ts+"_f"+std::to_string(frameCount)+".png";
             cv::imwrite(snapPath,display);
@@ -257,3 +259,4 @@ int main(int argc, char** argv) {
     cv::destroyAllWindows();
     return 0;
 }
+

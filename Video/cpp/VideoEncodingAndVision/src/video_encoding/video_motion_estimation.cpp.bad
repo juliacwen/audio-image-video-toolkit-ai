@@ -1,25 +1,26 @@
 /******************************************************************************
  * File: video_motion_estimation.cpp
- * Description: Capture from camera, compute dense optical flow (Farneback),
- *              display motion vectors, and write frames to MJPG/AVI file.
- *              Logging via -v option and Ctrl-C support.
- * Author: Julia Wen
+ * Description:
+ *   Capture from camera, compute dense optical flow (Farneback),
+ *   print representative motion statistics and write frames
+ *   with motion-vector overlay to an MJPG/AVI file.
+ *   Centralized logging, constants, Ctrl-C support.
+ *
+ * Author: Julia Wen wendigilane@gmail.com
  * Date: 2025-09-05
  ******************************************************************************/
 
 #include "../video_common/inc/video_common.h"
 #include <opencv2/opencv.hpp>
-#include <iostream>
 #include <cmath>
+#include <iostream>
 
 int main(int argc, char** argv) {
-    // Parse -v argument for logging
+    // Parse -v argument for logging level
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "-v" && i + 1 < argc) {
             int lvl = std::stoi(argv[i + 1]);
-            if (lvl >= static_cast<int>(LogLevel::INFO) &&
-                lvl <= static_cast<int>(LogLevel::ERROR))
-            {
+            if (lvl >= static_cast<int>(LogLevel::INFO) && lvl <= static_cast<int>(LogLevel::ERROR)) {
                 logLevel = static_cast<LogLevel>(lvl);
             }
         }
@@ -29,13 +30,15 @@ int main(int argc, char** argv) {
     std::signal(SIGINT, handleSigInt);
 
     LOG(LogLevel::INFO, "=== Video Motion Estimation ===");
+    LOG(LogLevel::INFO, "Logging level: " << static_cast<int>(logLevel));
 
+    // Open camera
     cv::VideoCapture cap(0);
     if (!cap.isOpened()) {
         LOG(LogLevel::ERROR, "Cannot open camera.");
         return -1;
     }
-    LOG(LogLevel::INFO, "Camera opened successfully.");
+    LOG(LogLevel::INFO, "Camera opened.");
 
     cv::Mat prevFrame, prevGray;
     cap >> prevFrame;
@@ -46,10 +49,10 @@ int main(int argc, char** argv) {
     cv::cvtColor(prevFrame, prevGray, cv::COLOR_BGR2GRAY);
 
     // Video writer
-    std::string outFile = "output_video.avi";
+    const std::string outFile = "output_video.avi";
     cv::VideoWriter writer(outFile,
                            cv::VideoWriter::fourcc('M','J','P','G'),
-                           20,
+                           VIDEO_FPS,
                            prevFrame.size());
     if (!writer.isOpened()) {
         LOG(LogLevel::ERROR, "Could not open video file for writing.");
@@ -76,39 +79,33 @@ int main(int argc, char** argv) {
         cv::Mat displayScaled;
         cv::resize(display, displayScaled, cv::Size(), WINDOW_SCALE, WINDOW_SCALE);
 
-        // Draw motion vectors
         for (int y = 0; y < display.rows; y += DISPLAY_STEP) {
             for (int x = 0; x < display.cols; x += DISPLAY_STEP) {
                 const cv::Point2f& fxy = flow.at<cv::Point2f>(y, x);
-                float magnitude = std::sqrt(fxy.x * fxy.x + fxy.y * fxy.y);
+                float magnitude = std::sqrt(fxy.x*fxy.x + fxy.y*fxy.y);
                 cv::Scalar color = (magnitude > HIGHLIGHT_THRESHOLD) ? STRONG_COLOR : NORMAL_COLOR;
-                cv::line(display, cv::Point(x, y),
-                         cv::Point(cvRound(x + fxy.x * VECTOR_SCALE),
-                                   cvRound(y + fxy.y * VECTOR_SCALE)),
+                cv::line(display, cv::Point(x,y),
+                         cv::Point(cvRound(x + fxy.x * VECTOR_SCALE), cvRound(y + fxy.y * VECTOR_SCALE)),
                          color, 2);
-                cv::circle(display, cv::Point(x, y), REF_POINT_RADIUS, REF_COLOR, -1);
+                cv::circle(display, cv::Point(x,y), REF_POINT_RADIUS, REF_COLOR, -1);
             }
         }
 
-        // Debug log for points
+        // Debug log for reference points
         for (const auto &pt : DEBUG_POINTS) {
             const cv::Point2f &f = flow.at<cv::Point2f>(pt.y, pt.x);
-            LOG(LogLevel::INFO, "Frame " << frameCount
-                                         << " motion(" << pt.x << "," << pt.y
-                                         << "): dx=" << f.x << ", dy=" << f.y);
+            LOG(LogLevel::INFO, "Frame " << frameCount << " motion(" << pt.x << "," << pt.y << "): dx=" << f.x << ", dy=" << f.y);
         }
 
         cv::imshow("Motion Vectors Full", display);
         cv::imshow("Motion Vectors Scaled", displayScaled);
-
         writer.write(display);
-
-        // Exit keys
-        int key = cv::waitKey(1);
-        if (key == KEY_EXIT_CTRL_C || key == KEY_EXIT_ESC) break;
 
         prevGray = currGray.clone();
         frameCount++;
+
+        // Exit on ESC
+        if (cv::waitKey(1) == KEY_EXIT_ESC) break;
     }
 
     cap.release();
