@@ -18,3 +18,9 @@ pybind11
 diffusers>=0.20.0
 transformers
 accelerate
+mlflow
+langchain
+langchain-openai
+openai
+openpyxl
+python-dotenv>=1.0.0

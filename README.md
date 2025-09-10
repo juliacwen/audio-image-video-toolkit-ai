@@ -123,7 +123,7 @@ python video_depth_midas.py --video path/to/video.mp4
 
 ## Notes
 
-- Some source code in this repository was **generated or assisted with AI tools**.
+- Some source code in this repository was **generated or assisted with AI tools** (e.g., code suggestions, snippet generation, or documentation). All AI-assisted contributions were **reviewed and adapted** by the author to ensure correctness and alignment with the project’s requirements.
 - AI assistance was used as a **development aid** only; core algorithmic logic and dataset-specific handling were implemented and verified manually.
 
 ## Changelog
