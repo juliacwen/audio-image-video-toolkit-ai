@@ -136,7 +136,9 @@ python predict_crescent_vit.py
 
 ## Video Processing
 
-C++ modules for motion estimation, video encoding, depth estimation, trajectory analysis, plus Python scripts for depth estimation.
+C++ modules contains a set of video processing demos and utilities for motion estimation.Each tool focuses on a specific aspect of computer vision video processing, including motion estimation,frame prediction, stereo disparity, residual computation, optical flow, and trajectory analysis.
+Refer to VideoEncodingAndVision/README.md for more details.
+Plus Python scripts for depth estimation. 
 
 ### Usage
 **C++ compilation**:
