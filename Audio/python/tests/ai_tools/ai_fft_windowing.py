@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+ * Author: Julia Wen wendigilane@gmail.com
+ * Date: 2025-09-12
+
 AI-assisted FFT Windowing Tool
 - Extracts simple features from a WAV file
 - Uses a small neural network to predict the best FFT window
@@ -80,7 +83,8 @@ def apply_fft(wav_path, model, plot=True):
     freqs = np.fft.rfftfreq(N, 1/sr)
 
     # Save spectrum CSV
-    out_csv = Path(wav_path).with_suffix("_spectrum_ai.csv")
+    wav_path = Path(wav_path)
+    out_csv = wav_path.with_name(wav_path.stem + "_spectrum_ai.csv")  # <-- FIXED
     with open(out_csv, 'w') as f:
         f.write("Frequency,Magnitude\n")
         for fr, mag in zip(freqs, fft_mag):

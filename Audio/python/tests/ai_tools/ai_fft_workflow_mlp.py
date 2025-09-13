@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
 AI FFT workflow for test suite.
+ * Author: Julia Wen wendigilane@gmail.com
+ * Date: 2025-08-28
 Place at: cpp/tests/ai_tools/ai_fft_workflow.py
 
 Exports:
