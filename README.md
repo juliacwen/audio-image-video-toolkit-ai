@@ -6,11 +6,11 @@ This repository contains projects for **Audio**, **Image**, and **Video** proces
 
 ## Features
 
-**Audio**: Converting WAV to CSV, generating FFT spectra with multiple window types, running end-to-end AI-assisted FFT workflows that generate test WAVs, train a small MLP on synthetic spectra, and predict tone probabilities, performing automated FFT windowing tests with rectangular, Hann, Hamming, and Blackman windows. Supports **optional LLM explanations** if an OpenAI API key is set.
+**Audio**: Converting WAV to CSV, generating FFT spectra with multiple window types, running end-to-end AI-assisted FFT workflows that generate test WAVs, train a small MLP and PyTorch NN on synthetic spectra, and predict tone probabilities, performing automated FFT windowing tests with rectangular, Hann, Hamming, and Blackman windows. Supports **optional LLM explanations** if an OpenAI API key is set.
 
-**Image**: Crescent detection in images, with multiple classical and machine learning approaches and dataset generation.
+**Image**: Image processing that combines classical and machine learning methods, demonstrated through crescent detection in images, with additional tools for dataset generation.
 
-**Video**: C++ modules for motion estimation, video encoding, depth estimation, trajectory analysis, plus Python scripts for video depth estimation.
+**Video**: C++ modules for video encoding and computer vision including motion estimation, frame prediction, stereo disparity, residual computation, optical flow, trajectory analysis, etc. Refer to VideoEncodingAndVision/README.md for more details. Plus Python scripts for depth estimation using MiDaS.
 
 ## Table of Contents
 
@@ -56,6 +56,7 @@ Audio/
   python/
     src/
     tests/
+      ai_tools/
 Image/
   python/
     src/
@@ -75,70 +76,55 @@ Video/
 Contains scripts and tools for audio processing: CSV generation, audio feature extraction, plotting, and AI-assisted workflows.
 
 ### C++ Components
-- `Audio/cpp/src/wav_to_csv.cpp`: WAV → CSV (supports PCM **16-bit**, **24-bit**, and **IEEE Float32**; outputs `Index,Sample`).  
-    *Implementation: manual WAV parsing in C++.*
-- `Audio/cpp/src/wav_freq_csv.cpp`: WAV → CSV **and** FFT Spectrum CSV (`Index,Sample` and `Frequency,Magnitude`).  
-    *Implementation: manual WAV parsing + FFT using `std::complex`. Supports selectable FFT windows: rectangular, Hann, Hamming, Blackman.*
-
-- `Audio/cpp/test/test_wav_to_csv.cpp`: googletest
-- `Audio/cpp/test/test_wav_freq_csv.cpp`: googletest
+- `Audio/cpp/src/wav_to_csv.cpp` — WAV → CSV (supports PCM **16-bit**, **24-bit**, and **IEEE Float32**; outputs `Index,Sample`).
+- `Audio/cpp/src/wav_freq_csv.cpp` — WAV → CSV **and** FFT Spectrum CSV (`Index,Sample` and `Frequency,Magnitude`). Supports selectable FFT windows: rectangular, Hann, Hamming, Blackman.
+- `Audio/cpp/tests/test_wav_to_csv.cpp` — GoogleTest.
+- `Audio/cpp/tests/test_wav_freq_csv.cpp` — GoogleTest.
 
 ### Python Components
-- `Audio/python/src/compare_csv.py` — compare two **time-domain WAV CSVs**.  
-    *Uses **NumPy**, **Pandas**, **Matplotlib**.*
-- `Audio/python/src/comparetorch_csv.py` — Uses PyTorch tensors for faster handling of large CSVs. compare **time-domain or spectrum CSVs** with overlay + diff.  
-- `Audio/python/src/comp_plot_wav_diff.py` — compare **two WAV audio files** directly.  
-    *Uses **torchaudio**, **PyTorch**, **Matplotlib**.*
+- `Audio/python/src/compare_csv.py` — Compare two **time-domain WAV CSVs**.
+- `Audio/python/src/comparetorch_csv.py` — Compare **time-domain or spectrum CSVs** using PyTorch tensors with overlay + diff.
+- `Audio/python/src/comp_plot_wav_diff.py` — Compare **two WAV audio files** directly using `torchaudio`.
 
 ### Pytest with AI-assisted tools
-- `Audio/cpp/tests/test_wav_to_csv.py` — pytest
-- `Audio/cpp/tests/test_wav_freq_csv.py` — pytest
-- `Audio/cpp/tests/test_ai_fft_windowing.py` — executes automated tests
-- `Audio/cpp/tests/test_ai_fft_workflow.py` — executes automated AI workflow tests
-- `Audio/cpp/tests/ai_tools/ai_fft_windowing.py` — Apply different FFT windowing functions (rectangular, Hann, Hamming, Blackman) to audio segments.
-- `Audio/cpp/tests/ai_tools/ai_fft_workflow.py` — AI-assisted FFT workflow: generate WAVs, compute FFT, optional LLM explanation.
-- `Audio/cpp/tests/ai_tools/ai_test_all_windows.py` — Automated testing for all window types.
-- `Audio/cpp/tests/ai_tools/generate_wav.py` — Generate synthetic WAV files.
-- `Audio/cpp/tests/ai_tools/nn_module.py` — Small MLP model for tone prediction.
+- `Audio/python/tests/test_wav_to_csv.py` — pytest.
+- `Audio/python/tests/test_wav_freq_csv.py` — pytest.
+- `Audio/python/tests/test_ai_fft_windowing.py` — executes automated FFT windowing tests.
+- `Audio/python/tests/test_ai_fft_workflow.py` — executes automated AI workflow tests.
+- `Audio/python/tests/ai_tools/ai_fft_windowing.py` — Apply different FFT windowing functions (rectangular, Hann, Hamming, Blackman).
+- `Audio/python/tests/ai_tools/ai_fft_workflow.py` — AI-assisted workflow: AI FFT workflow using nn_module (MLP + RNN + NN)
+- `Audio/python/tests/ai_tools/ai_test_all_windows.py` — Automated testing for all window types.
+- `Audio/python/tests/ai_tools/generate_wav.py` — Generate synthetic WAV files.
+- `Audio/python/tests/ai_tools/nn_module.py` — MLP, NN and RNN models for tone prediction.
 
 ### End-to-end AI FFT Test Workflow
 - `Audio/python/tests/ai_llm_fft_demo.py` — AI FFT demo with optional LLM explanation.
-- `Audio/python/tests/test_comp_plot_wav_diff.py` - pytest for comp_plot_wav_diff.py
-- `Audio/python/tests/test_compare_csv.py` - pytest for compare_csv.py
-- `Audio/python/tests/test_comparetorch.py` - pytest for comparetorch_csv.py
+- `Audio/python/tests/test_comp_plot_wav_diff.py` — pytest for `comp_plot_wav_diff.py`.
+- `Audio/python/tests/test_compare_csv.py` — pytest for `compare_csv.py`.
+- `Audio/python/tests/test_comparetorch.py` — pytest for `comparetorch_csv.py`.
+- `Audio/cpp/tests/test_ai_fft_workflow.py` — End-to-end AI FFT workflow tests ((MLP, PyTorch NN, PyTorch RNN, ))
 
 ## Image Processing
 
 Python scripts for detecting crescent moons in sky images.
 
 **Detection approaches:**
-- `predict_crescent.py` – Python SVM with HOG + augmentation  
-- `predict_crescent_pytorch.py` – PyTorch-based SVM classifier using HOG features  
-- `predict_crescent_pytorch_cnn.py` – PyTorch CNN classifier with augmentation, CPU/GPU switching, and optional temperature scaling for new images  
-- `predict_crescent_tf.py` – TensorFlow CNN classifier built with tf.keras; saves trained model as a `.keras` file  
-- `predict_crescent_tf_classic.py` – TensorFlow wrapper around classic HOG + SVM approach; saves model as a `.h5` file  
-- `detect_crescent_classical.py` – Classical HOG + SVM approach  
-- `predict_crescent_vit.py` – Vision Transformer-based crescent prediction
-
-**Dataset generation:** `generate_crescent_images.py`
-
-### Usage
-```bash
-cd Image/python/src
-python detect_crescent_classical.py
-python predict_crescent.py
-python predict_crescent_pytorch.py
-python predict_crescent_pytorch_cnn.py
-python predict_crescent_tf.py
-python predict_crescent_tf_classic.py
-python predict_crescent_vit.py
-```
+- `predict_crescent.py` — Python SVM with HOG + augmentation.
+- `predict_crescent_pytorch.py` — PyTorch-based SVM classifier using HOG features.
+- `predict_crescent_pytorch_cnn.py` — PyTorch CNN classifier with augmentation, CPU/GPU switching, optional temperature scaling.
+- `predict_crescent_tf.py` — TensorFlow CNN classifier built with tf.keras; saves trained model as `.keras`.
+- `predict_crescent_tf_classic.py` — TensorFlow wrapper around classic HOG + SVM; saves model as `.h5`.
+- `detect_crescent_classical.py` — Classical HOG + SVM approach.
+- `predict_crescent_vit.py` — Vision Transformer-based crescent prediction.
+- Dataset generation: `generate_crescent_images.py`.
 
 ## Video Processing
 
-C++ modules contains a set of video processing demos and utilities for motion estimation.Each tool focuses on a specific aspect of computer vision video processing, including motion estimation,frame prediction, stereo disparity, residual computation, optical flow, and trajectory analysis.
-Refer to VideoEncodingAndVision/README.md for more details.
-Plus Python scripts for depth estimation. 
+C++ modules contain a set of video processing demos and utilities for motion estimation. Each tool focuses on a specific aspect of computer vision video processing, including motion estimation, frame prediction, stereo disparity, residual computation, optical flow, and trajectory analysis.
+- `Video/cpp/VideoEncodingAndVision/src` — source files.
+- `Video/cpp/VideoEncodingAndVision/tests` — C++ tests.
+- Python scripts for depth estimation:
+  - `Video/python/src/video_depth_midas.py` — Python script for depth estimation using MiDaS.
 
 ### Usage
 **C++ compilation**:
@@ -153,7 +139,7 @@ python video_depth_midas.py --video path/to/video.mp4
 
 ## Optional LLM Explanation
 
-Example Scripts (e.g., `ai_llm_fft_demo.py`) to generate **plain-language explanations of FFT results** using OpenAI models.
+Example Scripts (e.g., `ai_llm_fft_demo.py`) generate **plain-language explanations of FFT results** using OpenAI models.
 
 ### Requirements
 ```bash
@@ -207,12 +193,13 @@ python video_depth_midas.py --video path/to/video.mp4
 - The FFT AI demo is **offline-first**; LLM explanation is optional.
 
 ## Changelog
+- **2025‑09‑13** — Update Audio pytest coverage for MLP, NN, RNN
+- **2025‑09‑11** — Added PyTorch NN model to AI FFT workflow and updated tests
 - **2025‑09‑10** — Added AI FFT flow with LLM demo
-- **2025‑09‑08** — Added image processing with PyTorch CNN model 
-- **2025‑09‑07** — Modernize Audio C++ 
+- **2025‑09‑08** — Added image processing with PyTorch CNN model
+- **2025‑09‑07** — Modernize Audio C++
 - **2025‑09‑05** — Refactor Video C++  
 - **2025‑09‑04** — Added Video C++ modules for motion, encoding, depth estimation; updated structure  
-- **2025‑09‑02** — Added `predict_crescent_pytorch.py` and `predict_crescent_tf.py`  
 - **2025‑08‑29** — Added crescent detection scripts; repo restructure  
 - **2025‑08‑27** — Added AI FFT prediction workflow, Python/pytest validation  
 - **2025‑08‑25** — Updated `wav_freq_csv` with FFT window support; AI-assisted tests  

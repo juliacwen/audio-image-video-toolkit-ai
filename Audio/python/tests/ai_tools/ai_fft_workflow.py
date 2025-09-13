@@ -5,7 +5,7 @@
  * Date: 2025-09-11
  
 AI FFT workflow using nn_module (MLP + RNN + NN) with meaningful CSV filenames.
-Generates test WAVs, spectra, trains NN, and outputs predictions.
+Generates test WAVs, spectra, trains MLP, NN, RNN and outputs predictions.
 """
 
 import subprocess
