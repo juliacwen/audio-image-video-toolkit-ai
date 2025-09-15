@@ -193,6 +193,7 @@ python video_depth_midas.py --video path/to/video.mp4
 - The FFT AI demo is **offline-first**; LLM explanation is optional.
 
 ## Changelog
+- **2025‑09‑14** — Update Audio pytest to save all output (including png) to test_output
 - **2025‑09‑13** — Update Audio pytest coverage for MLP, NN, RNN
 - **2025‑09‑11** — Added PyTorch NN model to AI FFT workflow and updated tests
 - **2025‑09‑10** — Added AI FFT flow with LLM demo

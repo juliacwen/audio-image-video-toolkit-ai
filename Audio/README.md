@@ -65,10 +65,10 @@ Audio/
 5. Save predictions to `test_output/predictions.txt` with format `filename,model,probs`.
 
 **File locations for workflow:**
-- WAVs: `Audio/cpp/tests/ai_tools/test_output/tone_<suffix>.wav`
-- CSVs: `Audio/cpp/tests/ai_tools/test_output/tone_<suffix>.csv`
-- FFT Spectra: `Audio/cpp/tests/ai_tools/test_output/tone_<suffix>_spectrum.csv`
-- Predictions: `Audio/cpp/tests/ai_tools/test_output/predictions.txt`
+- WAVs: `Audio/test_output/tone_<suffix>.wav`
+- CSVs: `Audio/test_output/tone_<suffix>.csv`
+- FFT Spectra: `Audio/test_output/filename_ai_spectrum.csv & filename_ai.png`
+- Predictions: `Audio/test_output/predictions.txt`
 
 ## Optional LLM Explanation
 

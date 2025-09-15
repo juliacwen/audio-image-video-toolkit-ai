@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-# ai_tools/ai_fft_workflow.py
 """
+ai_fft_workflow.py
+
  * Author: Julia Wen wendigilane@gmail.com
- * Date: 2025-09-11
- 
+ * Date: 2025-09-14
+
 AI FFT workflow using nn_module (MLP + RNN + NN) with meaningful CSV filenames.
-Generates test WAVs, spectra, trains MLP, NN, RNN and outputs predictions.
+Generates test WAVs, spectra, trains NN, and outputs predictions.
 """
 
 import subprocess
@@ -26,37 +27,27 @@ LABEL_MAP = {"16bit": 0, "24bit": 1, "float32": 2}
 
 # ----------------------------
 def find_wav_freq_csv() -> Path:
-    """
-    Locate the wav_freq_csv binary starting from the current working directory,
-    then search all subdirectories. Hard-fails if not found.
-    """
     start_dir = Path.cwd()
     exe = None
-
-    # check current working directory first
+    # Check current working directory
     for cand in start_dir.iterdir():
         if cand.is_file() and cand.name.startswith("wav_freq_csv"):
             exe = cand
             break
-
-    # if not found, search all subdirectories
+    # Search recursively if not found
     if exe is None:
         for cand in start_dir.rglob("wav_freq_csv*"):
             if cand.is_file():
                 exe = cand
                 break
-
     if exe is None:
         raise FileNotFoundError(
-            f"Could not find wav_freq_csv binary under {start_dir} or its subdirectories. "
-            f"Please build it from Audio/cpp/src/wav_freq_csv.cpp."
+            f"Could not find wav_freq_csv binary under {start_dir} or its subdirectories."
         )
-
     return exe
 
 # ----------------------------
 def run_wav_freq_csv(out_dir: Path, suffix: str, subtype: str):
-    """Run wav_freq_csv to generate WAV + CSV + spectrum."""
     wav_file = out_dir / f"tone_{suffix}.wav"
     csv_file = out_dir / f"tone_{suffix}.csv"
     spectrum_file = out_dir / f"tone_{suffix}_spectrum.csv"
@@ -78,10 +69,18 @@ def run_wav_freq_csv(out_dir: Path, suffix: str, subtype: str):
     return wav_file, csv_file, spectrum_file
 
 # ----------------------------
-def main():
-    out_dir = Path(__file__).parent / "test_output"
+def main(out_dir: Path | None = None):
+    """
+    End-to-end workflow.
+    :param out_dir: optional Path where WAV/CSV/spectrum/predictions are written.
+                    Defaults to cwd/test_output if not provided.
+    """
+    if out_dir is None:
+        out_dir = Path.cwd() / "test_output"
+
     out_dir.mkdir(exist_ok=True)
 
+    # ----------------------------
     # Generate WAVs + spectra
     spectrum_paths = []
     for suffix, subtype in WAV_PARAMS:
@@ -91,13 +90,13 @@ def main():
 
     # ----------------------------
     # Patch nn_module.load_spectra for MLP
-    # ----------------------------
     original_load = nn_module.load_spectra
+
     def patched_load_spectra(files):
         spectra = []
         labels = []
         for f in files:
-            data = np.loadtxt(f, delimiter=',', skiprows=1).flatten()
+            data = np.loadtxt(f, delimiter=",", skiprows=1).flatten()
             spectra.append(data)
             for key, val in LABEL_MAP.items():
                 if key in f.name:
@@ -115,13 +114,13 @@ def main():
 
     # ----------------------------
     # Patch nn_module.load_spectra_rnn for RNN
-    # ----------------------------
     original_load_rnn = nn_module.load_spectra_rnn
+
     def patched_load_spectra_rnn(files):
         spectra = []
         labels = []
         for f in files:
-            data = np.loadtxt(f, delimiter=',', skiprows=1)
+            data = np.loadtxt(f, delimiter=",", skiprows=1)
             spectra.append(data)
             for key, val in LABEL_MAP.items():
                 if key in f.name:
@@ -140,19 +139,19 @@ def main():
         hidden_size=32,
         num_layers=1,
         num_classes=len(LABEL_MAP),
-        epochs=10
+        epochs=10,
     )
     nn_module.load_spectra_rnn = original_load_rnn
 
     # ----------------------------
     # Patch nn_module.load_spectra_nn for PyTorch NN
-    # ----------------------------
     original_load_nn = nn_module.load_spectra_nn
+
     def patched_load_spectra_nn(files):
         spectra = []
         labels = []
         for f in files:
-            data = np.loadtxt(f, delimiter=',', skiprows=1).flatten()
+            data = np.loadtxt(f, delimiter=",", skiprows=1).flatten()
             spectra.append(data)
             for key, val in LABEL_MAP.items():
                 if key in f.name:
@@ -171,7 +170,6 @@ def main():
 
     # ----------------------------
     # Predictions
-    # ----------------------------
     preds = {}
 
     # MLP
@@ -198,7 +196,6 @@ def main():
 
     # ----------------------------
     # Save predictions
-    # ----------------------------
     pred_file = out_dir / "predictions.txt"
     with open(pred_file, "w") as f:
         f.write("filename,model,probs\n")
@@ -208,7 +205,7 @@ def main():
 
     return preds
 
-# ----------------------------
+
 if __name__ == "__main__":
     predictions = main()
     print("Predictions:", predictions)
