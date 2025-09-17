@@ -1,49 +1,38 @@
-# Audio-Image-Video-Toolkit-AI
-**Author:** Julia Wen (<wendigilane@gmail.com>)
+# Audio-Image-Video-Multimodal AI Toolkit
+
+**Author:** Julia Wen (<wendigilane@gmail.com>)  
+**License:** MIT
+
+This repository provides **AI/ML pipelines and tools for Audio, Image, Video**, and **cross-modal multimodal AI applications**. Each top-level directory contains source code (C++ and Python) and tests (Pytest / GoogleTest) designed for research, experimentation, and interactive demos.
+
+---
 
 ## Project Overview
-This repository contains projects for **Audio**, **Image**, and **Video** processing, organized into separate top-level directories. Each area contains source code (C++ and Python) and tests (Pytest and GoogleTest) intended for development and experimentation with AI models.
 
-## Features
+The repository contains projects for **Audio**, **Image**, **Video** processing, and **cross-modal AI/ML tools**. Each domain contains source code (C++ and Python) and tests intended for development and experimentation with AI models.
 
-**Audio**: Converting WAV to CSV, generating FFT spectra with multiple window types, running end-to-end AI-assisted FFT workflows that generate test WAVs, train a small MLP and PyTorch NN on synthetic spectra, and predict tone probabilities, performing automated FFT windowing tests with rectangular, Hann, Hamming, and Blackman windows. Supports **optional LLM explanations** if an OpenAI API key is set.
+## Key Features
 
-**Image**: Image processing that combines classical and machine learning methods, demonstrated through crescent detection in images, with additional tools for dataset generation.
+### Audio
+- WAV → CSV conversion, FFT spectra with multiple window types (rectangular, Hann, Hamming, Blackman)
+- AI-assisted FFT workflows: MLP, RNN, PyTorch NN
+- Optional LLM explanations for FFT results
 
-**Video**: C++ modules for video encoding and computer vision including motion estimation, frame prediction, stereo disparity, residual computation, optical flow, trajectory analysis, etc. Refer to VideoEncodingAndVision/README.md for more details. Plus Python scripts for depth estimation using MiDaS.
+### Image
+- Crescent detection using classical (HOG + SVM) and deep learning approaches
+- CNN, Vision Transformer, TensorFlow & PyTorch implementations
+- Dataset generation tools
 
-## Table of Contents
+### Video
+- C++ modules: motion estimation, frame prediction, stereo disparity, optical flow, trajectory analysis
+- Python depth estimation using MiDaS
 
-- [Setup](#setup)
-- [Audio Processing](#audio-processing)
-- [Image Processing](#image-processing)
-- [Video Processing](#video-processing)
-- [Optional LLM Explanation](#optional-llm-explanation)
-- [Dependencies by Module](#dependencies-by-module)
-- [Build & Run](#build--run)
-- [Notes](#notes)
-- [Changelog](#changelog)
-- [License](#license)
+### Multimodal / Cross-Modal AI
+- Graph-based reasoning (A*, knowledge graphs) across embeddings from multiple modalities
+- LLM integration for natural-language explanations
+- Streamlit demos for interactive visualization
 
-## Setup
-
-### 1. Clone the repository
-```bash
-git clone https://github.com/juliacwen/audio-image-video-toolkit-ai/
-cd audio-image-video-toolkit-ai
-```
-
-### 2. Create and activate a virtual environment
-```bash
-python3 -m venv venv
-source venv/bin/activate   # macOS / Linux
-venv\Scripts\activate      # Windows PowerShell
-```
-
-### 3. Install dependencies
-```bash
-pip install -r requirements.txt
-```
+---
 
 ## Repository Structure
 
@@ -69,130 +58,121 @@ Video/
   python/
     src/
     tests/
+Multimodal/
+  graphs/       # A*, knowledge graph demos
+  llm/          # LLM integration scripts
 ```
+
+---
 
 ## Audio Processing
 
-Contains scripts and tools for audio processing: CSV generation, audio feature extraction, plotting, and AI-assisted workflows.
-
 ### C++ Components
-- `Audio/cpp/src/wav_to_csv.cpp` — WAV → CSV (supports PCM **16-bit**, **24-bit**, and **IEEE Float32**; outputs `Index,Sample`).
-- `Audio/cpp/src/wav_freq_csv.cpp` — WAV → CSV **and** FFT Spectrum CSV (`Index,Sample` and `Frequency,Magnitude`). Supports selectable FFT windows: rectangular, Hann, Hamming, Blackman.
-- `Audio/cpp/tests/test_wav_to_csv.cpp` — GoogleTest.
-- `Audio/cpp/tests/test_wav_freq_csv.cpp` — GoogleTest.
+- `Audio/cpp/src/wav_to_csv.cpp` — WAV → CSV (16-bit, 24-bit, Float32)
+- `Audio/cpp/src/wav_freq_csv.cpp` — WAV → CSV and FFT Spectrum CSV, supports multiple FFT windows
+- Tests: `Audio/cpp/tests/test_wav_to_csv.cpp`, `test_wav_freq_csv.cpp` (GoogleTest)
 
 ### Python Components
-- `Audio/python/src/compare_csv.py` — Compare two **time-domain WAV CSVs**.
-- `Audio/python/src/comparetorch_csv.py` — Compare **time-domain or spectrum CSVs** using PyTorch tensors with overlay + diff.
-- `Audio/python/src/comp_plot_wav_diff.py` — Compare **two WAV audio files** directly using `torchaudio`.
+- CSV comparison: `compare_csv.py`, `comparetorch_csv.py`
+- Audio plotting: `comp_plot_wav_diff.py`
 
-### Pytest with AI-assisted tools
-- `Audio/python/tests/test_wav_to_csv.py` — pytest.
-- `Audio/python/tests/test_wav_freq_csv.py` — pytest.
-- `Audio/python/tests/test_ai_fft_windowing.py` — executes automated FFT windowing tests.
-- `Audio/python/tests/test_ai_fft_workflow.py` — executes automated AI workflow tests.
-- `Audio/python/tests/ai_tools/ai_fft_windowing.py` — Apply different FFT windowing functions (rectangular, Hann, Hamming, Blackman).
-- `Audio/python/tests/ai_tools/ai_fft_workflow.py` — AI-assisted workflow: AI FFT workflow using nn_module (MLP + RNN + NN)
-- `Audio/python/tests/ai_tools/ai_test_all_windows.py` — Automated testing for all window types.
-- `Audio/python/tests/ai_tools/generate_wav.py` — Generate synthetic WAV files.
-- `Audio/python/tests/ai_tools/nn_module.py` — MLP, NN and RNN models for tone prediction.
+### Pytest with AI Tools
+- Automated FFT workflows: `ai_fft_windowing.py`, `ai_fft_workflow.py`, `ai_test_all_windows.py`
+- Neural networks: `nn_module.py` (MLP, NN, RNN)
+- Synthetic WAV generation: `generate_wav.py`
+- End-to-end AI FFT demo: `ai_llm_fft_demo.py` (optional LLM explanation)
 
-### End-to-end AI FFT Test Workflow
-- `Audio/python/tests/ai_llm_fft_demo.py` — AI FFT demo with optional LLM explanation.
-- `Audio/python/tests/test_comp_plot_wav_diff.py` — pytest for `comp_plot_wav_diff.py`.
-- `Audio/python/tests/test_compare_csv.py` — pytest for `compare_csv.py`.
-- `Audio/python/tests/test_comparetorch.py` — pytest for `comparetorch_csv.py`.
-- `Audio/cpp/tests/test_ai_fft_workflow.py` — End-to-end AI FFT workflow tests ((MLP, PyTorch NN, PyTorch RNN, ))
+---
 
 ## Image Processing
 
-Python scripts for detecting crescent moons in sky images.
+- Crescent detection scripts:
+  - `predict_crescent.py` — SVM + HOG + augmentation
+  - `predict_crescent_pytorch.py` — PyTorch SVM classifier
+  - `predict_crescent_pytorch_cnn.py` — CNN classifier
+  - `predict_crescent_tf.py` — TensorFlow CNN
+  - `predict_crescent_tf_classic.py` — TensorFlow wrapper for HOG+SVM
+  - `detect_crescent_classical.py` — Classical HOG + SVM
+  - `predict_crescent_vit.py` — Vision Transformer
+- Dataset generation: `generate_crescent_images.py`
 
-**Detection approaches:**
-- `predict_crescent.py` — Python SVM with HOG + augmentation.
-- `predict_crescent_pytorch.py` — PyTorch-based SVM classifier using HOG features.
-- `predict_crescent_pytorch_cnn.py` — PyTorch CNN classifier with augmentation, CPU/GPU switching, optional temperature scaling.
-- `predict_crescent_tf.py` — TensorFlow CNN classifier built with tf.keras; saves trained model as `.keras`.
-- `predict_crescent_tf_classic.py` — TensorFlow wrapper around classic HOG + SVM; saves model as `.h5`.
-- `detect_crescent_classical.py` — Classical HOG + SVM approach.
-- `predict_crescent_vit.py` — Vision Transformer-based crescent prediction.
-- Dataset generation: `generate_crescent_images.py`.
+---
 
 ## Video Processing
 
-C++ modules contain a set of video processing demos and utilities for motion estimation. Each tool focuses on a specific aspect of computer vision video processing, including motion estimation, frame prediction, stereo disparity, residual computation, optical flow, and trajectory analysis.
-- `Video/cpp/VideoEncodingAndVision/src` — source files.
-- `Video/cpp/VideoEncodingAndVision/tests` — C++ tests.
-- Python scripts for depth estimation:
-  - `Video/python/src/video_depth_midas.py` — Python script for depth estimation using MiDaS.
+- C++ modules for motion, frame prediction, stereo disparity, optical flow, trajectory analysis
+- Python depth estimation: `video_depth_midas.py` (MiDaS)
 
-### Usage
 **C++ compilation**:
 ```bash
 make -C Video/cpp/VideoEncodingAndVision
 ```
+
 **Python scripts**:
 ```bash
 cd Video/python/src
 python video_depth_midas.py --video path/to/video.mp4
 ```
 
-## Optional LLM Explanation
+---
 
-Example Scripts (e.g., `ai_llm_fft_demo.py`) generate **plain-language explanations of FFT results** using OpenAI models.
+## Multimodal / Cross-Modal AI
 
-### Requirements
+- Graph-based reasoning (A*, knowledge graphs) across embeddings
+- LLM integration for explanations
+- Streamlit demo:
 ```bash
-export OPENAI_API_KEY="your_api_key_here"   # macOS/Linux
-setx OPENAI_API_KEY "your_api_key_here"     # Windows
-export LLM_MODEL="gpt-4o-mini"  # optional, default: gpt-3.5-turbo
+cd Multimodal/graphs
+streamlit run astar_demo.py
 ```
 
-**Behavior**
-- If the API key exists, top 5 average frequency magnitudes per window type are sent to the LLM.
-- The LLM returns a **natural-language explanation**.
-- If no API key is set, offline FFT analysis and plotting still function normally.
+---
+
+## Setup
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/juliacwen/audio-image-video-toolkit-ai/
+cd audio-image-video-toolkit-ai
+```
+
+2. **Create and activate virtual environment**
+```bash
+python3 -m venv venv
+source venv/bin/activate   # macOS / Linux
+venv\Scripts\activate     # Windows PowerShell
+```
+
+3. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+---
 
 ## Dependencies by Module
 
-| Script / Tool   | Domain      | Libraries / Tools |
-|-----------------|------------|-----------------|
-| Audio C++       | Audio      | g++, standard C++ libraries, FFT, WAV parsing |
-| Audio Python    | Audio      | NumPy, SciPy, Matplotlib, PyTorch, scikit-learn, SoundFile, pandas, openpyxl, python-dotenv |
-| Audio AI Tools  | Audio/AI   | NumPy, Pandas, PyTorch, openpyxl, python-dotenv, (optional: LangChain, OpenAI Python SDK) |
-| Image Python    | Image      | OpenCV, NumPy, scikit-learn, Matplotlib, joblib, tf.keras, PyTorch |
-| Video C++       | Video      | g++, standard C++ libraries, OpenCV |
-| Video Python    | Video      | OpenCV, PyTorch, timm, NumPy, Matplotlib |
+| Module               | Domain      | Libraries / Tools |
+|---------------------|------------|-----------------|
+| Audio C++           | Audio      | g++, FFT, WAV parsing |
+| Audio Python        | Audio      | NumPy, SciPy, Matplotlib, PyTorch, scikit-learn, SoundFile, pandas, openpyxl, python-dotenv |
+| Audio AI Tools      | Audio/AI   | NumPy, Pandas, PyTorch, openpyxl, python-dotenv, (optional: LangChain, OpenAI Python SDK) |
+| Image Python        | Image      | OpenCV, NumPy, scikit-learn, Matplotlib, joblib, tf.keras, PyTorch |
+| Video C++           | Video      | g++, OpenCV |
+| Video Python        | Video      | OpenCV, PyTorch, timm, NumPy, Matplotlib |
+| Multimodal / AI     | Cross-Modal | NetworkX, PyTorch, Streamlit, OpenAI Python SDK |
 
-## Build & Run
-
-**C++ compilation**
-```bash
-make -C Audio/cpp
-make -C Video/cpp/VideoEncodingAndVision
-```
-**Python scripts**
-```bash
-# Audio
-cd Audio/python/src
-python compare_csv.py
-python ai_fft_demo.py ../../test_files/readme_sample.wav
-
-# Image
-cd Image/python/src
-python predict_crescent.py --image path/to/image.jpg
-
-# Video
-cd Video/python/src
-python video_depth_midas.py --video path/to/video.mp4
-```
+---
 
 ## Notes
+- Some code assisted by AI tools; core logic verified manually
+- FFT AI demo is offline-first; LLM explanation is optional
+- Multimodal folder contains AI/ML tools connecting multiple domains
 
-- Some source code was **assisted with AI tools**, but core logic was implemented and verified manually.
-- The FFT AI demo is **offline-first**; LLM explanation is optional.
+---
 
 ## Changelog
+- **2025‑09‑17** — Added Multimodal/graphs/app_images_astar.py, Multimodal/llm/ai_llm_fft_demo.py  Multimodal/llm/test_ai_llm_fft_demo.py
 - **2025‑09‑14** — Update Audio pytest to save all output (including png) to test_output
 - **2025‑09‑13** — Update Audio pytest coverage for MLP, NN, RNN
 - **2025‑09‑11** — Added PyTorch NN model to AI FFT workflow and updated tests
@@ -211,5 +191,5 @@ python video_depth_midas.py --video path/to/video.mp4
 - **2025‑08‑18** — Initial setup
 
 ## License
-MIT License
-
+MIT License  
+© 2025 Julia Wen (<wendigilane@gmail.com>)
