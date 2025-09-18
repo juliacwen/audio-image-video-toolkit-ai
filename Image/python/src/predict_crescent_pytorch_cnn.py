@@ -3,7 +3,8 @@
 """
 predict_crescent_pytorch_cnn.py
 Author: Julia Wen 
-Date: 2025-09-08 (adapted to CNN)
+Date: 2025-09-08 Adapted to CNN
+Date: 2025-09-18 Updated to outpout to json
 Description:
 End-to-end CNN for crescent classification:
  - Lightweight CNN (2 conv layers + pooling + dropout + FC head)
@@ -21,6 +22,7 @@ from skimage.io import imread
 from skimage.color import rgb2gray
 from skimage.transform import resize, rotate
 from skimage.util import random_noise
+import json
 
 import torch
 import torch.nn as nn
@@ -36,7 +38,7 @@ IMG_SIZE = (128, 128)
 BATCH_SIZE = 16
 EPOCHS = 10
 LR = 1e-3
-MODEL_PATH = "crescent_cnn_best.pth"
+MODEL_PATH = "test_output/crescent_cnn_best.pth"
 
 # -------------------
 # Dataset
@@ -206,8 +208,11 @@ def train_model(model, train_loader, val_loader, epochs, lr, device):
 # -------------------
 # Prediction
 # -------------------
+
 def predict(model, dataset, device, no_display=False):
     model.eval()
+    crescent_probs = {}  # store probability of "crescent" class
+
     with torch.no_grad():
         for idx in range(len(dataset)):
             img, label, path = dataset[idx]
@@ -216,12 +221,23 @@ def predict(model, dataset, device, no_display=False):
             probs = torch.softmax(logits, dim=1).cpu().numpy()[0]
             pred_idx = np.argmax(probs)
             pred_name = CLASSES[pred_idx]
+            crescent_probs[path] = float(probs[CLASSES.index("crescent")])  # store crescent probability
+
             print(f"{path} → {pred_name}, probability={probs[pred_idx]:.2f}")
             if not no_display:
                 plt.imshow(imread(path))
                 plt.title(f"{os.path.basename(path)}: {pred_name} ({probs[pred_idx]:.2f})")
                 plt.axis("off")
                 plt.show()
+
+    # Save all crescent probabilities to JSON
+    json_path = "test_output/crescent_probs.json"
+    with open(json_path, "w") as f:
+        json.dump(crescent_probs, f, indent=4)
+    print(f"\n✅ Crescent probabilities saved to {json_path}")
+
+    return crescent_probs
+
 
 # -------------------
 # Main
