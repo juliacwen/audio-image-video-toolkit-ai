@@ -1,0 +1,36 @@
+# config_predict_crescent_tf.yaml
+# Configuration file for predict_crescent_tf.py
+# All parameters are loaded into the script via PyYAML.
+
+dataset:
+  dir: "dataset"                  # Path to dataset directory
+  classes: ["crescent", "no_crescent"]  # Class names
+
+image:
+  height: 128                     # Image height for CNN input
+  width: 128                      # Image width for CNN input
+  channels: 3                     # Number of image channels (RGB)
+  max_pixel_value: 255.0          # Maximum pixel value for normalization
+
+cnn:
+  filters:
+    layer1: 32                    # Number of filters in first Conv2D layer
+    layer2: 64                    # Number of filters in second Conv2D layer
+    layer3: 128                   # Number of filters in third Conv2D layer
+  kernel_size: [3, 3]             # Kernel size for all Conv2D layers
+  dense_units: 128                 # Number of units in fully connected layer
+  dropout_rate: 0.5                # Dropout rate before final Dense layer
+
+training:
+  learning_rate: 0.001             # Adam optimizer learning rate
+  batch_size: 8                    # Training batch size
+  epochs: 20                       # Number of training epochs
+  rng_seed: 42                      # Random seed for reproducibility
+
+augmentation:
+  rotation_angles: [-15, 15]       # Degrees for rotation augmentation
+  snp_noise_amount: 0.01           # Salt-and-pepper noise amount
+
+model:
+  path: "crescent_moon_cnn.keras" # Path to save trained model (.keras)
+
