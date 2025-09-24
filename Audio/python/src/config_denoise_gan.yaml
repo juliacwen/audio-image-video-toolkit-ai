@@ -1,0 +1,34 @@
+# Audio Denoising GAN Config (Audible Output)
+
+# Spectrogram parameters
+n_fft: 1024
+hop_length: 512
+fixed_frames: 256   # padded/truncated time frames
+spec_power: 2       # magnitude squared
+
+# Model parameters
+gen_features: 64
+disc_features: 64
+leaky_relu_slope: 0.2
+
+# Training hyperparameters
+epochs: 20
+batch_size: 4
+learning_rate: 0.0002
+adv_weight: 1.0
+rec_weight: 100.0  # strong L1 to enforce denoising
+
+# Device
+device: cuda  # or "cpu"
+
+# Synthetic dataset parameters
+dataset:
+  clean_dir: "data/clean"
+  noisy_dir: "data/noisy"
+  noise_level: 0.05       # Gaussian noise amplitude
+  sample_rate: 16000       # for synthetic generation
+  duration: 1.0            # seconds per sample (used if generating synthetic sine waves)
+  amplitude: 0.5
+  freq_start: 200
+  freq_end: 2000
+
