@@ -1,15 +1,43 @@
 #!/usr/bin/env python3
 """
-denoise_gan.py — Fully working Conv2D Denoising GAN
+denoise_gan.py — Conv2D Denoising GAN
 Author: Julia Wen
-Date: 2025-09-20
+Date: 2025-09-23
 
-CLI:
-  python3 denoise_gan.py --config config_denoise_gan.yaml --check_dataset
-  python3 denoise_gan.py --config config_denoise_gan.yaml --train
-  python3 denoise_gan.py --config config_denoise_gan.yaml --infer \
-      --noisy_wav data/noisy/clean_0_noisy.wav \
-      --out_wav clean_0_noisy_denoised.wav
+Description:
+    This script implements a convolutional 2D Generative Adversarial Network (GAN)
+    for audio denoising. It operates on spectrograms of audio signals and supports
+    both training and inference. Noisy audio can be synthetically generated from
+    clean audio using Gaussian noise.
+    Configurable parameters (dataset paths, model settings, training options, etc.)
+    are provided via a YAML configuration file, with some values still hard-coded.
+
+Features:
+    - Dataset loader for noisy/clean audio pairs, computes log-magnitude spectrograms
+    - Conv2D U-Net style generator for predicting noise in spectrograms
+    - PatchGAN discriminator for adversarial training
+    - Training loop with L1 reconstruction loss and adversarial loss
+    - Inference with overlap-add strategy for long audio files
+    - CLI support for dataset checking, training, and denoising inference
+
+Dependencies:
+    - Python 3.8+
+    - PyTorch
+    - NumPy
+    - PyDub
+    - pyyaml
+
+CLI Examples:
+    # Check dataset
+    python3 denoise_gan.py --config config_denoise_gan.yaml --check_dataset
+
+    # Train the GAN
+    python3 denoise_gan.py --config config_denoise_gan.yaml --train
+
+    # Denoise a WAV file
+    python3 denoise_gan.py --config config_denoise_gan.yaml --infer \
+        --noisy_wav data/noisy/clean_0_noisy.wav \
+        --out_wav clean_0_noisy_denoised.wav
 """
 
 import os

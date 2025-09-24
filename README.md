@@ -11,8 +11,9 @@ The repository contains projects for Audio, Image, Video processing, and cross-m
 
 ### Audio
 - WAV → CSV conversion, FFT spectra with multiple window types (rectangular, Hann, Hamming, Blackman)
-- AI-assisted FFT workflows: MLP, RNN, PyTorch NN
+- AI-assisted FFT workflows: MLP, NN, RNN
 - Optional LLM explanations for FFT results
+- Convolutional 2D GAN for audio denoising, allowing reconstruction of cleaner audio from noisy recordings.
 
 ### Image
 - Crescent detection using classical (HOG + SVM) and deep learning approaches
@@ -66,6 +67,7 @@ Multimodal/
 ### Python Components
 - CSV comparison: `compare_csv.py`, `comparetorch_csv.py`
 - Audio plotting: `comp_plot_wav_diff.py`
+- Denoising with GAN: `denoise_gan.py`
 - Pytest with AI Tools
 - Automated FFT workflows: `ai_fft_windowing.py`, `ai_fft_workflow.py`, `ai_test_all_windows.py`
 - Neural networks: `nn_module.py` (MLP, NN, RNN)
@@ -140,7 +142,9 @@ pip install -r requirements.txt
 - Multimodal folder contains AI/ML tools connecting multiple domains
 
 ## Changelog
-- 2025‑09‑20 — Updated Image folder: `predict_crescent_tf.py` now supports YAML config, labeled `_tf.png` images, and results saved in `test_output/`; Streamlit app `app_predict_crescent_tf.py` added
+- 2025‑09‑23 — Added Audio/python/src/denoise_gan.py` — Convolutional 2D GAN for audio denoising
+- 2025‑09‑21 — Added Image/python/src/app_predict_crescent_tf.py, streamlit app to enable running with GUI
+- 2025‑09‑20 — Updated Image/python/src/predict_crescent_tf.py, now supports YAML
 - 2025‑09‑17 — Added Multimodal/graphs/app_images_astar.py, Multimodal/llm/ai_llm_fft_demo.py, Multimodal/llm/test_ai_llm_fft_demo.py
 - 2025‑09‑14 — Update Audio pytest to save all output (including png) to test_output
 - 2025‑09‑13 — Update Audio pytest coverage for MLP, NN, RNN

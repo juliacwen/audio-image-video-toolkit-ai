@@ -38,6 +38,7 @@ Audio/
 - `Audio/python/src/compare_csv.py` — compare two time-domain WAV CSVs. Uses NumPy, Pandas, Matplotlib.
 - `Audio/python/src/comparetorch_csv.py` — compare time-domain or spectrum CSVs using PyTorch tensors.
 - `Audio/python/src/comp_plot_wav_diff.py` — compare two WAV audio files using torchaudio and Matplotlib.
+- `Audio/python/src/denoise_gan.py` — Convolutional 2D GAN for audio denoising, allowing reconstruction of cleaner audio from noisy recordings.
 
 #### Pytest and AI-assisted Tools
 - `Audio/python/tests/test_ai_fft_windowing.py` — automated FFT windowing tests.
