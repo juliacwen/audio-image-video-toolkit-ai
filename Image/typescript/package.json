@@ -1,0 +1,16 @@
+{
+  "name": "crescent-demo",
+  "version": "1.0.0",
+  "description": "Simulated crescent detection demo in TypeScript",
+  "main": "crescentDemo.ts",
+  "scripts": {
+    "start": "ts-node crescentDemo.ts"
+  },
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "ts-node": "^10.9.2"
+  }
+}
+
