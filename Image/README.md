@@ -4,18 +4,34 @@
 ## Overview
 This folder contains scripts for crescent moon detection and synthetic image generation.
 
-### Detection Approaches
-- `predict_crescent.py` – Python SVM with HOG + augmentation  
-- `predict_crescent_pytorch.py` – PyTorch-based SVM classifier using HOG features  
-- `predict_crescent_pytorch_cnn.py` – PyTorch CNN classifier with augmentation, CPU/GPU switching, and optional temperature scaling for new images  
-- `predict_crescent_tf.py` – TensorFlow CNN classifier built with tf.keras; saves trained model as a `.keras` file; supports YAML config, saves labeled `_tf.png` images and results text in `test_output/`  
-- `predict_crescent_tf_classic.py` – TensorFlow wrapper around classic HOG + SVM approach; saves model as a `.h5` file  
-- `predict_crescent_vit.py` – Vision Transformer-based crescent prediction  
-- `detect_crescent_classical.py` – Classical HOG + SVM approach  
-- `app_predict_crescent_tf.py` – **Streamlit app for TensorFlow CNN**, supports live training charts, external image upload, labeled image output (`_tf.png`), and results saved in `test_output/`  
+- **Detection Approaches:** Python scripts (SVM, PyTorch CNN, TensorFlow CNN, HOG, ViT) for crescent detection.
+- **TypeScript Demo:** A TypeScript example `crescentDemo.ts` demonstrating crescent detection, using `Image/typescript/web`.
 
-### Synthetic Image Generation
-- `generate_crescent_images.py` – Stable Diffusion-based crescent/no-crescent images (CPU/CUDA/MPS), with internal negative prompts and logging. Includes Safety Checker note for quick local testing.
+---
+
+## Directory Layout
+```text
+Image/
+  python/
+    src/
+      predict_crescent.py
+      predict_crescent_pytorch.py
+      predict_crescent_pytorch_cnn.py
+      predict_crescent_tf.py
+      predict_crescent_tf_classic.py
+      predict_crescent_vit.py
+      detect_crescent_classical.py
+      app_predict_crescent_tf.py
+      generate_crescent_images.py
+      server.py
+  typescript/
+    crescentDemo.ts
+    web/
+  dataset/
+    crescent/
+    no_crescent/
+  test_output/
+```
 
 ---
 
@@ -36,9 +52,7 @@ Dependencies include: `numpy`, `scikit-learn`, `scikit-image`, `matplotlib`, `jo
 
 ---
 
-## Quick Start Usage Examples
-
-### Dataset Structure
+## Dataset Structure
 ```
 dataset/
 ├── crescent/
@@ -52,8 +66,32 @@ dataset/
 ```
 Images can be `.jpg`, `.png`, `.jpeg`, `.bmp`, `.tif`, or `.tiff`. Place images for each class in the corresponding folder.
 
-### Train and Predict
+---
 
+## Python Scripts (Image/python/src)
+
+### Detection Approaches
+- `predict_crescent.py` – Python SVM with HOG + augmentation  
+- `predict_crescent_pytorch.py` – PyTorch SVM classifier using HOG features  
+- `predict_crescent_pytorch_cnn.py` – PyTorch CNN classifier with augmentation, CPU/GPU switching, optional temperature scaling  
+- `predict_crescent_tf.py` – TensorFlow CNN classifier built with tf.keras; YAML config supported, outputs results in `test_output/`  
+- `predict_crescent_tf_classic.py` – TensorFlow wrapper around HOG + SVM approach  
+- `predict_crescent_vit.py` – Vision Transformer-based crescent prediction  
+- `detect_crescent_classical.py` – Classical HOG + SVM approach  
+- `app_predict_crescent_tf.py` – **Streamlit app for TensorFlow CNN**; live training charts, external image upload, labeled image output (`_tf.png`), results saved in `test_output/`  
+- `server.py` – FastAPI server for live crescent detection, using SVM + HOG; handles file upload and returns prediction with confidence
+- `generate_crescent_images.py` – Stable Diffusion-based crescent/no-crescent image generation (CPU/CUDA/MPS), with internal negative prompts and logging
+
+---
+
+## TypeScript Demo (Image/typescript/web)
+- `crescentDemo.ts` – Demonstrates crescent detection logic in TypeScript; simulates predictions, logs results in console. Uses `Image/typescript/web` for dataset reference.
+
+---
+
+## Quick Start Usage Examples
+
+### Train and Predict
 ```bash
 # PyTorch + SVM
 python3 predict_crescent_pytorch.py
@@ -67,6 +105,9 @@ python3 predict_crescent_tf_classic.py
 
 # Streamlit App (TensorFlow CNN)
 streamlit run app_predict_crescent_tf.py
+
+# FastAPI Server
+python3 server.py
 ```
 
 ### Predict a Single New Image
@@ -98,27 +139,6 @@ python3 generate_crescent_images.py
 
 ---
 
-## How It Works
-
-- Images are read and resized to 128×128 pixels.  
-- Color or grayscale conversion depending on the script.  
-- HOG feature extraction for SVM-based approaches.  
-- Data augmentation applied where enabled.  
-- Feature scaling using StandardScaler.  
-- Linear SVM, PyTorch logistic regression, or CNN trained end-to-end.  
-- Predictions output with probability/confidence scores.  
-- Original images displayed with predicted labels and probabilities; augmented images used for training only.  
-- **TensorFlow CNN (`predict_crescent_tf.py`)** now supports:
-  - YAML configuration (`config_predict_crescent_tf.yaml`)  
-  - Output results saved in `test_output/predict_crescent_tf_result.txt`  
-  - Labeled images with `_tf.png` suffix for reference  
-- **Streamlit app (`app_predict_crescent_tf.py`)**:
-  - Live training plots via `st.line_chart`  
-  - Upload and predict new images  
-  - Saves `_tf.png` labeled images and results text automatically  
-
----
-
 ## Model and Scaler Persistence
 
 ### PyTorch SVM
@@ -133,7 +153,6 @@ scaler = joblib.load("crescent_moon_scaler.pkl")
 ```
 ### PyTorch CNN
 ```python
-# Saved as crescent_cnn_best.pth
 import torch
 model = torch.load("crescent_cnn_best.pth")
 ```
@@ -157,14 +176,14 @@ scaler = joblib.load("crescent_moon_scaler.pkl")
 ---
 
 ## Notes
-
-- Some source code in this repository was assisted with AI tools.  
-- AI assistance was used as a development aid only; core algorithmic logic and dataset-specific handling were implemented and verified manually.  
-- Streamlit app allows interactive training, predictions, and saves outputs automatically in `test_output/`.  
+- Python scripts reside under `Image/python/src`.  
+- TypeScript demo (`crescentDemo.ts`) is under `Image/typescript` and uses `Image/typescript/web` for datasets.  
+- Some parts were developed with AI assistance; core algorithms were implemented and verified manually.
+- Streamlit app allows interactive training and saves outputs automatically in `test_output/`.  
+- FastAPI server supports live prediction via file upload.
 
 ---
 
 ## License
-
 MIT License
 
