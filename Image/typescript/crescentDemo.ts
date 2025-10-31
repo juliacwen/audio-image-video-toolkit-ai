@@ -1,4 +1,14 @@
-// File: Image/typescript/crescentDemo.ts
+/**
+ * File: Image/typescript/crescentDemo.ts
+ * Description: TypeScript demo for simulated crescent detection in images.
+ * Author: Julia Wen
+ * Date: 2025-10-15
+ * Notes: This script demonstrates a crescent detection workflow using TypeScript.
+ *        It reads images from 'crescent' and 'no_crescent' dataset folders under Image/dataset/,
+ *        simulates detection, and prints results to the console.
+ *        Designed to work with the web-related TypeScript setup in Image/typescript/web.
+ */
+
 import * as fs from "fs";
 import * as path from "path";
 
