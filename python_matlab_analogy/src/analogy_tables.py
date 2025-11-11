@@ -1,13 +1,13 @@
 # src/analogy_tables.py
 #!/usr/bin/env python3
 """
-analogy_tables.py — complete MATLAB ↔ Python analogy tables & code examples
-- Uses named constants at top to avoid magic numbers in examples.
-- Includes package-level mapping, concept equivalence, function-level mapping,
-  and full MATLAB ⇄ Python example code blocks.
-- Inline comments explain fidelity choices (soundfile vs librosa, etc.).
+analogy_tables.py 
 Author: Julia Wen (wendigilane@gmail.com)
-Date: 2025-11-10
+Date: 11-10-2025
+Description:
+— MATLAB ↔ Python analogy tables & code examples
+- Includes package-level mapping, concept equivalence, function-level mapping,
+  and MATLAB ⇄ Python example code blocks.
 """
 
 import streamlit as st

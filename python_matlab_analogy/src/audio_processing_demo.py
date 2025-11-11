@@ -1,51 +1,20 @@
-# src/audio_processing_demo.py
-#!/usr/bin/env python3
-"""
------------------------------------------------------------------------
-Audio processing demo (production-ready, single-file)
-- Keeps the same left-hand slider menu for both synthetic & uploaded audio.
-- Slider ranges adapt to the current signal (data-driven) but the menu
-  (labels/order) remains identical.
-- Automatic best-quality loader: try soundfile.read (high-fidelity) then
-  fallback to librosa.load if needed (e.g. MP3).
-- Single set of plots (matplotlib): time-domain, FFT (positive freqs),
-  and spectrogram. No duplicated graphs.
-- Left sidebar analogy selector immediately renders the chosen section
-  in the main area (no placeholder text).
-- All constants are defined at the top; no arbitrary magic numbers scattered.
-- Inline comments document exactly what is done where.
------------------------------------------------------------------------
-Author: Julia Wen (wendigilane@gmail.com)
-Date: 2025-11-10
------------------------------------------------------------------------
-"""
 
 # src/audio_processing_demo.py
 #!/usr/bin/env python3
 """
-audio_processing_demo.py — production-ready (single-file)
-- Exports a run() function (so matlab_analogy_demo.py can call audio_processing_demo.run()).
-- Behavior fixed to match your requirements exactly:
+audio_processing_demo.py
+Author: Julia Wen (wendigilane@gmail.com)
+Date: 11-10-2025
+Description:
     * The LEFT sidebar always shows the SAME sliders/menu (Sampling Rate, Duration,
       Amplitude, Frequency, Noise). Menu labels/order never change.
-    * Slider RANGES adapt automatically using the FIRST uploaded file when present,
-      but sliders are never removed. If no file is uploaded, safe defaults are used.
+    * Slider RANGES adapt automatically using the FIRST uploaded file when present.
+      If no file is uploaded, safe defaults are used.
     * Audio analysis GRAPHS (Time, FFT, Spectrogram, and two-file Diff) are ALWAYS
       rendered at the TOP of the main area.
-    * Analogy content is ALWAYS rendered BELOW the graphs.
-    * Changing the left-hand analogy selectbox scrolls the browser to the analogy
-      section (the page position changes, content order does not).
-    * Robust audio loading: uploaded bytes are written to a NamedTemporaryFile and
-      read with soundfile.read (preferred) then librosa.load as fallback; pydub
-      fallback included if available. This avoids libsndfile BytesIO "Format not
-      recognised" errors.
-    * st.audio playback works (we play the raw uploaded bytes).
-    * No duplicate plots (single matplotlib plots).
+    * Analogy content is rendered below the graphs.
     * Two-file difference plot is always shown if two files are uploaded.
     * All constants are defined at the top (no magic numbers sprinkled in).
-- Inline comments explain exactly what each part does.
-Author: Julia Wen (wendigilane@gmail.com)
-Date: 2025-11-10
 """
 
 import io
