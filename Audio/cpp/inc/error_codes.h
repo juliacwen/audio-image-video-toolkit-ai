@@ -29,6 +29,7 @@ constexpr int ERR_MUTEX_LOCK          = -31;
 constexpr int ERR_PARALLEL_PROCESS    = -32;
 
 // General unexpected failure
+constexpr int ERR_INVALID_INPUT       = -98;
 constexpr int ERR_UNKNOWN             = -99;
 
 #endif // ERROR_CODES_H
