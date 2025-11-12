@@ -3,8 +3,15 @@
 //  Author:        Julia Wen
 //  Date:          September 7, 2025
 //  Description:   WAV → CSV + FFT Spectrum
-//                 Optional windowing support: Hann, Hamming, Blackman, Rectangular
-//                 Updated for C++17: constexpr, auto, structured loops
+//                 Windowing support: Hann, Hamming, Blackman, Rectangular
+//                 C++17: constexpr, auto, structured loops
+//=============================================================================
+
+//=============================================================================
+//  Revision History:
+//-----------------------------------------------------------------------------
+//  Sep 07, 2025  1.0       Julia Wen    Original creation
+//  Nov 12, 2025  1.1       Julia Wen    Added error_codes.h and proper error handling
 //=============================================================================
 
 #include <cstdint>
@@ -15,11 +22,18 @@
 #include <cmath>
 #include <complex>
 #include <algorithm>
+#include "../inc/error_codes.h"   // Added for error handling
 
 using cd = std::complex<double>;
 
 // Use literal for PI to allow constexpr in C++17
 constexpr double kPI = 3.14159265358979323846;
+
+// WAV constants
+constexpr uint16_t PCM_16_BPS = 16;
+constexpr uint16_t PCM_24_BPS = 24;
+constexpr uint16_t WAVE_FMT_PCM = 1;
+constexpr uint16_t WAVE_FMT_FLOAT = 3;
 
 // FFT and Bit-reversal permutation
 void bitReverse(std::vector<cd>& a) {
@@ -33,24 +47,29 @@ void bitReverse(std::vector<cd>& a) {
     }
 }
 
-void fft(std::vector<cd>& a, bool invert) {
-    const auto n = a.size();
-    bitReverse(a);
-    for (size_t len = 2; len <= n; len <<= 1) {
-        const double ang = 2 * kPI / len * (invert ? -1 : 1);
-        const cd wlen(cos(ang), sin(ang));
-        for (size_t i = 0; i < n; i += len) {
-            cd w(1);
-            for (size_t j = 0; j < len / 2; ++j) {
-                auto u = a[i + j];
-                auto v = a[i + j + len / 2] * w;
-                a[i + j] = u + v;
-                a[i + j + len / 2] = u - v;
-                w *= wlen;
+int fft(std::vector<cd>& a, bool invert) {
+    try {
+        const auto n = a.size();
+        bitReverse(a);
+        for (size_t len = 2; len <= n; len <<= 1) {
+            const double ang = 2 * kPI / len * (invert ? -1 : 1);
+            const cd wlen(cos(ang), sin(ang));
+            for (size_t i = 0; i < n; i += len) {
+                cd w(1);
+                for (size_t j = 0; j < len / 2; ++j) {
+                    auto u = a[i + j];
+                    auto v = a[i + j + len / 2] * w;
+                    a[i + j] = u + v;
+                    a[i + j + len / 2] = u - v;
+                    w *= wlen;
+                }
             }
         }
+        if (invert) for (auto& x : a) x /= n;
+        return SUCCESS;
+    } catch (...) {
+        return ERR_FFT_COMPUTE;
     }
-    if (invert) for (auto& x : a) x /= n;
 }
 
 // Window functions
@@ -64,6 +83,16 @@ constexpr double windowValue(WindowType type, size_t i, size_t N) {
         case WindowType::Blackman:   return 0.42 - 0.5 * std::cos(2 * kPI * i / (N - 1)) + 0.08 * std::cos(4 * kPI * i / (N - 1));
     }
     return 1.0;
+}
+
+// Parse window type from string
+WindowType parseWindow(const std::string& w) {
+    std::string s = w;
+    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+    if (s == "hann") return WindowType::Hann;
+    if (s == "hamming") return WindowType::Hamming;
+    if (s == "blackman") return WindowType::Blackman;
+    return WindowType::Rectangular;
 }
 
 // WAV reading helpers
@@ -87,35 +116,22 @@ static int32_t readI24(const uint8_t* p) {
     return v;
 }
 
-// Parse window type from string
-WindowType parseWindow(const std::string& w) {
-    std::string s = w;
-    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-    if (s == "hann") return WindowType::Hann;
-    if (s == "hamming") return WindowType::Hamming;
-    if (s == "blackman") return WindowType::Blackman;
-    return WindowType::Rectangular;
-}
-
 int main(int argc, char** argv) {
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " input.wav output.csv [window]\n";
-        return 1;
-    }
+    if (argc < 3) return ERR_UNKNOWN;
 
     const std::string inPath = argv[1];
     const std::string outPath = argv[2];
     WindowType window = (argc >= 4) ? parseWindow(argv[3]) : WindowType::Rectangular;
 
     std::ifstream f(inPath, std::ios::binary);
-    if (!f) { std::cerr << "Failed to open input: " << inPath << "\n"; return 1; }
+    if (!f) { std::cerr << "Failed to open input: " << inPath << "\n"; return ERR_FILE_NOT_FOUND; }
 
     // Read WAV header
     char riff[4]; f.read(riff, 4);
-    if (std::string(riff, 4) != "RIFF") { std::cerr << "Not a RIFF file\n"; return 1; }
+    if (std::string(riff, 4) != "RIFF") { std::cerr << "Not a RIFF file\n"; return ERR_INVALID_HEADER; }
     readU32(f);
     char wave[4]; f.read(wave, 4);
-    if (std::string(wave, 4) != "WAVE") { std::cerr << "Not a WAVE file\n"; return 1; }
+    if (std::string(wave, 4) != "WAVE") { std::cerr << "Not a WAVE file\n"; return ERR_INVALID_HEADER; }
 
     bool have_fmt = false, have_data = false;
     uint16_t fmt = 0, channels = 0, bps = 0;
@@ -146,9 +162,10 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (!have_fmt || !have_data) { std::cerr << "Missing fmt or data chunk\n"; return 1; }
-    if (!((fmt == 1 && (bps == 16 || bps == 24)) || (fmt == 3 && bps == 32))) {
-        std::cerr << "Only PCM 16/24-bit or Float32 supported\n"; return 1;
+    if (!have_fmt || !have_data) { std::cerr << "Missing fmt or data chunk\n"; return ERR_INVALID_HEADER; }
+    if (!((fmt == WAVE_FMT_PCM && (bps == PCM_16_BPS || bps == PCM_24_BPS)) || (fmt == WAVE_FMT_FLOAT && bps == 32))) {
+        std::cerr << "Only PCM 16/24-bit or Float32 supported\n"; 
+        return ERR_UNSUPPORTED_FORMAT;
     }
 
     // Read audio data
@@ -156,14 +173,14 @@ int main(int argc, char** argv) {
     std::vector<uint8_t> raw(dataSize);
     if (!f.read(reinterpret_cast<char*>(raw.data()), dataSize)) {
         std::cerr << "Failed to read audio data\n";
-        return 1;
+        return ERR_READ_FAILURE;
     }
 
     const size_t sampleBytes = bps / 8;
     const size_t frames = dataSize / (sampleBytes * channels);
 
     std::ofstream csv(outPath);
-    if (!csv) { std::cerr << "Failed to open output CSV: " << outPath << "\n"; return 1; }
+    if (!csv) { std::cerr << "Failed to open output CSV: " << outPath << "\n"; return ERR_CSV_WRITE_FAILURE; }
     csv << "Index,Sample\n";
 
     std::vector<double> samples;
@@ -172,15 +189,15 @@ int main(int argc, char** argv) {
     for (size_t i = 0; i < frames; ++i) {
         double sample = 0.0;
 
-        if (fmt == 1) { // PCM
-            if (bps == 16) {
+        if (fmt == WAVE_FMT_PCM) {
+            if (bps == PCM_16_BPS) {
                 if (channels == 1) sample = readI16(&raw[i * 2]);
                 else {
                     int32_t L = readI16(&raw[(i * channels + 0) * 2]);
                     int32_t R = readI16(&raw[(i * channels + 1) * 2]);
                     sample = (L + R) / 2.0;
                 }
-            } else if (bps == 24) {
+            } else if (bps == PCM_24_BPS) {
                 if (channels == 1) sample = readI24(&raw[i * 3]);
                 else {
                     int32_t L = readI24(&raw[(i * channels + 0) * 3]);
@@ -188,7 +205,7 @@ int main(int argc, char** argv) {
                     sample = (L + R) / 2.0;
                 }
             }
-        } else if (fmt == 3 && bps == 32) { // Float32
+        } else if (fmt == WAVE_FMT_FLOAT && bps == 32) {
             if (channels == 1) sample = *reinterpret_cast<const float*>(&raw[i * 4]);
             else {
                 float L = *reinterpret_cast<const float*>(&raw[(i * channels + 0) * 4]);
@@ -210,7 +227,7 @@ int main(int argc, char** argv) {
     std::vector<cd> fa(fftN, 0);
     std::copy(samples.begin(), samples.end(), fa.begin());
 
-    fft(fa, false);
+    if (int err = fft(fa, false); err != SUCCESS) return err;
 
     // Write spectrum CSV
     std::string specPath = outPath;
@@ -219,6 +236,7 @@ int main(int argc, char** argv) {
     else specPath += "_spectrum.csv";
 
     std::ofstream spec(specPath);
+    if (!spec) return ERR_CSV_WRITE_FAILURE;
     spec << "Frequency(Hz),Magnitude\n";
     for (size_t i = 0; i < fftN / 2; ++i) {
         double freq = static_cast<double>(i) * sampleRate / fftN;
@@ -230,6 +248,5 @@ int main(int argc, char** argv) {
     std::cout << "Wrote " << samples.size() << " samples to " << outPath
               << " and " << specPath << " (" << sampleRate << " Hz)\n";
 
-    return 0;
+    return SUCCESS;
 }
-
