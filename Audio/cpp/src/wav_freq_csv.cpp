@@ -4,13 +4,10 @@
 //  Description:   WAV → CSV + FFT Spectrum
 //                 Windowing support: Hann, Hamming, Blackman, Rectangular
 //                 C++17: constexpr, auto, structured loops
-//=============================================================================
-
-//=============================================================================
 //  Revision History:
 //-----------------------------------------------------------------------------
 //  Sep 07, 2025  1.0       Julia Wen    Initial check in
-//  Nov 12, 2025  1.1       Julia Wen    Added error_codes.h and proper error handling
+//  Nov 12, 2025  1.1       Julia Wen    Added error_codes.h, error handling, improvement
 //=============================================================================
 
 #include <cstdint>
@@ -25,7 +22,6 @@
 
 using cd = std::complex<double>;
 
-// Use literal for PI to allow constexpr in C++17
 constexpr double kPI = 3.14159265358979323846;
 
 // WAV constants
@@ -39,42 +35,56 @@ constexpr size_t BYTES_PER_SAMPLE_24 = 3;
 constexpr size_t BYTES_PER_SAMPLE_32 = 4;
 
 // FFT and Bit-reversal permutation
-void bitReverse(std::vector<cd>& a) {
-    const auto n = a.size();
+inline void bitReverseInPlace(std::vector<cd>& a) noexcept {
+    const size_t n = a.size();
+    if (n <= 2) return;
+
     size_t j = 0;
-    for (size_t i = 1; i < n; i++) {
+    for (size_t i = 1; i < n - 1; ++i) {
         size_t bit = n >> 1;
-        while (j & bit) { j ^= bit; bit >>= 1; }
+        for (; j & bit; bit >>= 1) j ^= bit;
         j ^= bit;
         if (i < j) std::swap(a[i], a[j]);
     }
 }
 
-int fft(std::vector<cd>& a, bool invert) {
-    try {
-        const auto n = a.size();
-        bitReverse(a);
-        for (size_t len = 2; len <= n; len <<= 1) {
-            const double ang = 2 * kPI / static_cast<double>(len) * (invert ? -1.0 : 1.0);
-            const cd wlen(std::cos(ang), std::sin(ang));
-            for (size_t i = 0; i < n; i += len) {
-                cd w(1);
-                for (size_t j = 0; j < len / 2; ++j) {
-                    const auto u = a[i + j];
-                    const auto v = a[i + j + len / 2] * w;
-                    a[i + j] = u + v;
-                    a[i + j + len / 2] = u - v;
-                    w *= wlen;
-                }
+// Faster, branch-reduced FFT using iterative radix-2 Cooley-Tukey
+inline int fft(std::vector<cd>& a, bool invert) noexcept {
+    const size_t n = a.size();
+    if (n == 0) return ERR_FFT_COMPUTE;  // invalid input
+    if (n == 1) return SUCCESS;          // nothing to do
+    if ((n & (n - 1)) != 0) return ERR_FFT_COMPUTE;  // not a power of two
+
+    bitReverseInPlace(a);
+
+    const double sgn = invert ? -1.0 : 1.0;
+    for (size_t len = 2; len <= n; len <<= 1) {
+        const double ang = sgn * 2.0 * kPI / static_cast<double>(len);
+        const cd wlen(std::cos(ang), std::sin(ang));
+
+        // Process each block of size 'len'
+        for (size_t i = 0; i < n; i += len) {
+            cd w(1.0, 0.0);
+            const size_t half = len >> 1;
+            cd* a0 = &a[i];            // local pointer avoids repeated indexing
+            cd* a1 = a0 + half;
+
+            for (size_t j = 0; j < half; ++j) {
+                const cd u = a0[j];
+                const cd v = a1[j] * w;
+                a0[j]     = u + v;
+                a1[j]     = u - v;
+                w *= wlen;
             }
         }
-        if (invert) {
-            for (auto& x : a) x /= static_cast<double>(n);
-        }
-        return SUCCESS;
-    } catch (...) {
-        return ERR_FFT_COMPUTE;
     }
+
+    if (invert) {
+        const double invN = 1.0 / static_cast<double>(n);
+        for (auto& x : a) x *= invN;
+    }
+
+    return SUCCESS;
 }
 
 // Window functions
@@ -199,48 +209,69 @@ int main(int argc, char** argv) {
     const auto sampleBytes = static_cast<size_t>(bps) / 8;
     const auto frames = static_cast<size_t>(dataSize) / (sampleBytes * static_cast<size_t>(channels));
 
-    std::ofstream csv(outPath);
-    if (!csv) { std::cerr << "Failed to open output CSV: " << outPath << '\n'; return ERR_CSV_WRITE_FAILURE; }
-    csv << "Index,Sample\n";
+    // Read samples and apply window
+    // Precompute window coefficients
+    std::vector<double> windowCoeffs(frames);
+    for (size_t i = 0; i < frames; ++i)
+        windowCoeffs[i] = windowValue(window, i, frames);
 
+    // Allocate sample vector
     std::vector<double> samples;
     samples.reserve(frames);
 
-    // Read samples and apply window
-    for (auto i = size_t{0}; i < frames; ++i) {
+    // Open CSV
+    std::ofstream csv(outPath);
+    if (!csv) { std::cerr << "Failed to open output CSV: " << outPath << '\n'; return ERR_CSV_WRITE_FAILURE; }
+    csv << "Index,Sample\n"; // CSV header
+
+    constexpr size_t flushEvery = 1000; // Flush CSV every N lines to ensure buffered data is written periodically
+    size_t lineCount = 0;
+
+    // Main loop: decode samples, apply window, write CSV
+    for (size_t i = 0; i < frames; ++i) {
         double sample = 0.0;
 
-        if (fmt == WAVE_FMT_PCM) {
-            if (bps == PCM_16_BPS) {
-                if (channels == 1) sample = readI16(&raw[i * BYTES_PER_SAMPLE_16]);
-                else {
-                    const auto L = readI16(&raw[(i * static_cast<size_t>(channels) + 0) * BYTES_PER_SAMPLE_16]);
-                    const auto R = readI16(&raw[(i * static_cast<size_t>(channels) + 1) * BYTES_PER_SAMPLE_16]);
-                    sample = (L + R) / 2.0;
-                }
-            } else if (bps == PCM_24_BPS) {
-                if (channels == 1) sample = readI24(&raw[i * BYTES_PER_SAMPLE_24]);
-                else {
-                    const auto L = readI24(&raw[(i * static_cast<size_t>(channels) + 0) * BYTES_PER_SAMPLE_24]);
-                    const auto R = readI24(&raw[(i * static_cast<size_t>(channels) + 1) * BYTES_PER_SAMPLE_24]);
-                    sample = (L + R) / 2.0;
-                }
+        // PCM 16-bit
+        if (fmt == WAVE_FMT_PCM && bps == PCM_16_BPS) {
+            if (channels == 1) sample = readI16(&raw[i * BYTES_PER_SAMPLE_16]);
+            else {
+                const auto L = readI16(&raw[(i * channels + 0) * BYTES_PER_SAMPLE_16]);
+                const auto R = readI16(&raw[(i * channels + 1) * BYTES_PER_SAMPLE_16]);
+                sample = (L + R) / 2.0;
             }
-        } else if (fmt == WAVE_FMT_FLOAT && bps == 32) {
+        }
+        // PCM 24-bit
+        else if (fmt == WAVE_FMT_PCM && bps == PCM_24_BPS) {
+            if (channels == 1) sample = readI24(&raw[i * BYTES_PER_SAMPLE_24]);
+            else {
+                const auto L = readI24(&raw[(i * channels + 0) * BYTES_PER_SAMPLE_24]);
+                const auto R = readI24(&raw[(i * channels + 1) * BYTES_PER_SAMPLE_24]);
+                sample = (L + R) / 2.0;
+            }
+        }
+        // Float32
+        else if (fmt == WAVE_FMT_FLOAT && bps == 32) {
             if (channels == 1) sample = *reinterpret_cast<const float*>(&raw[i * BYTES_PER_SAMPLE_32]);
             else {
-                const auto L = *reinterpret_cast<const float*>(&raw[(i * static_cast<size_t>(channels) + 0) * BYTES_PER_SAMPLE_32]);
-                const auto R = *reinterpret_cast<const float*>(&raw[(i * static_cast<size_t>(channels) + 1) * BYTES_PER_SAMPLE_32]);
+                const auto L = *reinterpret_cast<const float*>(&raw[(i * channels + 0) * BYTES_PER_SAMPLE_32]);
+                const auto R = *reinterpret_cast<const float*>(&raw[(i * channels + 1) * BYTES_PER_SAMPLE_32]);
                 sample = (L + R) / 2.0;
             }
         }
 
         // Apply window
-        sample *= windowValue(window, i, frames);
+        sample *= windowCoeffs[i];
 
-        csv << i << "," << sample << '\n';
+        // Store sample
         samples.push_back(sample);
+
+        // Write CSV line
+        csv << i << "," << sample << '\n';
+        if (++lineCount >= flushEvery) { csv.flush(); lineCount = 0; }
     }
+
+    // Final flush
+    csv.flush();
     csv.close();
 
     // FFT
