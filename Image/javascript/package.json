@@ -1,0 +1,8 @@
+{
+  "name": "crescent-js-demo",
+  "type": "module",
+  "scripts": {
+    "start": "node crescentDemo.js"
+  }
+}
+

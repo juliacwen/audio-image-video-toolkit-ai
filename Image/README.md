@@ -5,7 +5,7 @@
 This folder contains scripts for crescent moon detection and synthetic image generation.
 
 - **Detection Approaches:** Python scripts (SVM, PyTorch CNN, TensorFlow CNN, HOG, ViT) for crescent detection.
-- **TypeScript Demo:** A TypeScript example `crescentDemo.ts` demonstrating crescent detection, using `Image/typescript/web`.
+- **TypeScript & JavaScript Demos:** Frontend examples demonstrating crescent detection using `Image/typescript/web` or `Image/javascript/web`.
 
 ---
 
@@ -27,6 +27,18 @@ Image/
   typescript/
     crescentDemo.ts
     web/
+      App.tsx
+      main.tsx
+      index.html
+      package.json
+      vite.config.ts
+  javascript/
+    web/
+      App.jsx
+      main.jsx
+      index.html
+      package.json
+      vite.config.js
   dataset/
     crescent/
     no_crescent/
@@ -37,17 +49,17 @@ Image/
 
 ## Quick Start / Installation
 
-1. **Create virtual environment**  
+### 1. Create virtual environment
 ```bash
 python3 -m venv venv
 source venv/bin/activate      # macOS/Linux
 venv\Scripts\activate         # Windows
 ```
 
-2. **Install dependencies**  
+### 2. Install Python dependencies
 ```bash
 pip install -r requirements.txt
-```  
+```
 Dependencies include: `numpy`, `scikit-learn`, `scikit-image`, `matplotlib`, `joblib`, `torch`, `torchvision`, `torchaudio`, `tensorflow`, `opencv-python`, `imageio`, `imageio-ffmpeg`, `soundfile` (optional), `timm` (optional), `streamlit`.
 
 ---
@@ -85,11 +97,37 @@ Images can be `.jpg`, `.png`, `.jpeg`, `.bmp`, `.tif`, or `.tiff`. Place images 
 ---
 
 ## TypeScript Demo (Image/typescript/web)
-- `crescentDemo.ts` – Demonstrates crescent detection logic in TypeScript; simulates predictions, logs results in console. Uses `Image/typescript/web` for dataset reference.
+- `crescentDemo.ts` – Demonstrates crescent detection logic in TypeScript; simulates predictions, logs results in console. Uses dataset under `Image/typescript/web/public/dataset/`.
+
+### Run TypeScript Demo
+```bash
+cd Image/typescript/web
+npm install
+npm run dev
+```
+- Open the URL Vite prints (e.g., `http://localhost:5173/`) in your browser.  
+- Click **Run Detection** to simulate crescent detection results.
 
 ---
 
-## Quick Start Usage Examples
+## JavaScript Demo (Image/javascript/web)
+- `App.jsx` – React + JavaScript frontend for crescent detection; communicates with FastAPI backend at `http://127.0.0.1:8000/detect`.  
+- `main.jsx`, `index.html`, `package.json`, `vite.config.js` – Main entry and configuration files for JavaScript frontend.  
+- Uses dataset under `Image/javascript/web/public/dataset/`.
+
+### Run JavaScript Demo
+```bash
+cd Image/javascript/web
+npm install
+npm run dev
+```
+- Open the URL Vite prints (e.g., `http://localhost:5173/`) in your browser.  
+- Click **Run Detection** to see real predictions from your backend.  
+- The page title can indicate whether the TypeScript or JavaScript frontend is running.
+
+---
+
+## Quick Start Usage Examples (Python)
 
 ### Train and Predict
 ```bash
@@ -178,9 +216,10 @@ scaler = joblib.load("crescent_moon_scaler.pkl")
 ## Notes
 - Python scripts reside under `Image/python/src`.  
 - TypeScript demo (`crescentDemo.ts`) is under `Image/typescript` and uses `Image/typescript/web` for datasets.  
-- Some parts were developed with AI assistance; core algorithms were implemented and verified manually.
+- JavaScript frontend uses `Image/javascript/web`.  
 - Streamlit app allows interactive training and saves outputs automatically in `test_output/`.  
-- FastAPI server supports live prediction via file upload.
+- FastAPI server supports live prediction via file upload.  
+- Add `console.log` or modify page title in the frontend to distinguish TypeScript vs JavaScript demos.
 
 ---
 

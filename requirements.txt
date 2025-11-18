@@ -24,3 +24,4 @@ langchain-openai
 openai
 openpyxl
 python-dotenv>=1.0.0
+streamlit

@@ -16,7 +16,6 @@ video_common/
         video_common.cpp
 video_encoding/
     video_motion_estimation.cpp
-    video_motion_estimation.cpp.bad
     video_frame_prediction.cpp
     video_block_matching.cpp
     video_residual.cpp

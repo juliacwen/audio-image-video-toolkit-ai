@@ -2,40 +2,13 @@
 **Author:** Julia Wen (wendigilane@gmail.com)  
 **License:** MIT
 
-This repository contains AI/ML pipelines, tools, and demos for **Audio**, **Image**, **Video**, and **cross-modal multimodal AI applications**. It includes **C++ and Python source code**, **Python Bayesian utilities**, **TypeScript React demos** (under `Image/typescript/web`), **Streamlit apps**, **database integration**, and **tests** (Pytest / GoogleTest). Each domain provides end-to-end workflows, training/prediction scripts, and interactive demos for research and experimentation.
+This repository contains AI/ML pipelines, tools, and demos for **Audio**, **Image**, **Video**, and **cross-modal multimodal AI applications**. It includes **C++ and Python source code**, **TypeScript and JavaScript React demos** (under `Image/typescript/web` and `Image/javascript/web`), **Streamlit apps**, **database integration**, and **tests** (Pytest / GoogleTest). Each domain provides end-to-end workflows, training/prediction scripts, and interactive demos for research and experimentation. 
 
 ## Project Overview
-- **Audio:** WAV → CSV, FFT spectra (multiple window types), MLP/NN/RNN models, optional LLM explanations, **2D Conv GAN denoising**, Bayesian utilities under `Audio/python/bayesian`.
-- **Image:** Crescent detection (HOG+SVM, CNN, Vision Transformer), PyTorch/TensorFlow implementations, **dataset generation**, **interactive Streamlit apps**, TypeScript React demos under `Image/typescript/web`.
+- **Audio:** WAV → CSV, FFT spectra (multiple window types), MLP/NN/RNN models, optional LLM explanations, **2D Conv GAN denoising**.
+- **Image:** Crescent detection (HOG+SVM, CNN, Vision Transformer), PyTorch/TensorFlow implementations, **dataset generation**, **interactive Streamlit apps**, TypeScript and JavaScript React demos under `Image/typescript/web` and `Image/javascript/web`.
 - **Video:** Motion estimation, frame prediction, stereo disparity, optical flow, trajectory analysis, MiDaS-based depth estimation.
-- **Multimodal / Cross-Modal AI:** Graph-based reasoning, LLM explanations, interactive demos, and database support for embeddings/outputs.
-
-## Key Features
-
-### Audio
-- WAV → CSV conversion, FFT spectra with multiple window types (rectangular, Hann, Hamming, Blackman)
-- AI-assisted FFT workflows: MLP, NN, RNN
-- Optional LLM explanations for FFT results
-- Convolutional 2D GAN for audio denoising
-- Bayesian utilities for probabilistic signal analysis (`Audio/python/bayesian`)
-
-### Image
-- Crescent detection using classical (HOG + SVM) and deep learning approaches
-- CNN, Vision Transformer, TensorFlow & PyTorch implementations
-- Dataset generation tools
-- Updated TensorFlow CNN (`predict_crescent_tf.py`) supports YAML config, outputs `_tf.png` labeled images, and saves results to `test_output/predict_crescent_tf_result.txt`
-- Streamlit app (`app_predict_crescent_tf.py`) for interactive GUI training, image upload, predictions, and output saving
-- TypeScript React demo: `Image/typescript/crescentDemo.ts` and web folder `Image/typescript/web`
-
-### Video
-- C++ modules: motion estimation, frame prediction, stereo disparity, optical flow, trajectory analysis
-- Python depth estimation using MiDaS
-
-### Multimodal / Cross-Modal AI
-- Graph-based reasoning (A*, knowledge graphs) across embeddings from multiple modalities
-- LLM integration for natural-language explanations
-- Database integration for storing embeddings, predictions, and results
-- Streamlit demos for interactive visualization
+- **Multimodal / Cross-Modal AI:** Graph-based reasoning, LLM explanations, interactive demos, Bayesian apps, and database support.
 
 ## Repository Structure
 ```
@@ -45,15 +18,16 @@ Audio/
     tests/
   python/
     src/
-    bayesian/
     tests/
       ai_tools/
 Image/
   python/
     src/
-      dataset/
   typescript/
     crescentDemo.ts
+    web/
+  javascript/
+    crescentDemo.js
     web/
 Video/
   cpp/
@@ -64,26 +38,27 @@ Video/
     src/
     tests/
 Multimodal/
-  graphs/       # A*, knowledge graph demos
-  llm/          # LLM integration scripts
-  db/           # Database integration
+  bayesian/
+  graphs/
+  llm/
+  db/
 ```
 
 ## Audio Processing
 ### C++ Components
 - `Audio/cpp/src/wav_to_csv.cpp` — WAV → CSV (16-bit, 24-bit, Float32)
 - `Audio/cpp/src/wav_freq_csv.cpp` — WAV → CSV and FFT Spectrum CSV, supports multiple FFT windows
-- Tests: GoogleTest `test_wav_to_csv.cpp`, `test_wav_freq_csv.cpp`
+- `Audio/cpp/src/wav_freq_csv_channelized.cpp` — Channelized FFT spectra extraction
+- Audio/cpp/tests: GoogleTest `test_wav_to_csv.cpp`, `test_wav_freq_csv.cpp`, `test_wav_freq_csv_multi_channel.cpp`
 
 ### Python Components
 - CSV comparison: `compare_csv.py`, `comparetorch_csv.py`
 - Audio plotting: `comp_plot_wav_diff.py`
 - Denoising with GAN: `denoise_gan.py` (YAML config supported)
-- Pytest with AI Tools
 - Automated FFT workflows: `ai_fft_windowing.py`, `ai_fft_workflow.py`, `ai_test_all_windows.py`
 - Neural networks: `nn_module.py` (MLP, NN, RNN)
 - Synthetic WAV generation: `generate_wav.py`
-- Bayesian utilities: `Audio/python/bayesian`
+- Pytest with AI Tools
 - End-to-end AI FFT demo: `ai_llm_fft_demo.py` (optional LLM explanation)
 
 ## Image Processing
@@ -97,11 +72,26 @@ Multimodal/
 - `predict_crescent_vit.py` — Vision Transformer
 - Streamlit app: `app_predict_crescent_tf.py` for interactive training/predictions
 - Dataset generation: `generate_crescent_images.py`
-- TypeScript React demo: `Image/typescript/crescentDemo.ts` using `Image/typescript/web`
+- TypeScript React demo: `Image/typescript/crescentDemo.ts` using `Image/typescript/web/App.tsx`
+- JavaScript React demo: `Image/javascript/crescentDemo.js` using `Image/javascript/web/App.jsx`
 
 ## Video Processing
-- C++ modules for motion, frame prediction, stereo disparity, optical flow, trajectory analysis
-- Python depth estimation: `video_depth_midas.py` (MiDaS)
+- C++ modules (Video/cpp/VideoEncodingAndVision) for motion, frame prediction, stereo disparity, optical flow, trajectory analysis
+video_common/
+    inc/
+        video_common.h
+    src/
+        video_common.cpp
+video_encoding/
+    video_motion_estimation.cpp
+    video_frame_prediction.cpp
+    video_block_matching.cpp
+    video_residual.cpp
+video_motion_and_depth/
+    video_vio_demo.cpp
+    video_trajectory_from_motion.cpp
+    video_depth_from_stereo.cpp
+- Python moduel (Video/python) depth estimation: `video_depth_midas.py` (MiDaS)
 - C++ compilation:
 ```bash
 make -C Video/cpp/VideoEncodingAndVision
@@ -113,15 +103,14 @@ python video_depth_midas.py --video path/to/video.mp4
 ```
 
 ## Multimodal / Cross-Modal AI
-- Graph-based reasoning (A*, knowledge graphs) across embeddings
-- LLM integration for explanations
-- Database support for embeddings, predictions, results
-- Streamlit demo:
-```bash
-cd Multimodal/graphs
-streamlit run astar_demo.py
-```
+- **Bayesian apps:** `Multimodal/bayesian` (`app_bayesian_astar.py`, `app_bayesian_astar_db.py`, `app_bayesian_fft_streamlit_db.py`)
+- Graph-based reasoning (A*, knowledge graphs) across embeddings from multiple modalities: `Multimodal/graphs/app_images_astar.py`, `app_images_astar_db.py`
+- LLM integration for natural-language explanations: `Multimodal/llm/ai_llm_fft_demo.py`, `Multimodal/llm/test_ai_llm_fft_demo.py`
+- Database integration for storing embeddings, predictions, and results
+- Streamlit demos for interactive visualization
 
+## python_matlab_analogy
+ - Python Matlab analogy examples
 ## Setup
 1. Clone the repository
 ```bash
@@ -144,10 +133,9 @@ pip install -r requirements.txt
 |--------|--------|-----------------|
 | Audio C++ | Audio | g++, FFT, WAV parsing |
 | Audio Python | Audio | NumPy, SciPy, Matplotlib, PyTorch, scikit-learn, SoundFile, pandas, openpyxl, python-dotenv |
-| Audio Bayesian | Audio | NumPy, SciPy, PyTorch, Pandas |
-| Audio AI Tools | Audio/AI | NumPy, Pandas, PyTorch, openpyxl, python-dotenv, (optional: LangChain, OpenAI Python SDK) |
 | Image Python | Image | OpenCV, NumPy, scikit-learn, Matplotlib, joblib, tf.keras, PyTorch |
 | Image TypeScript | Image | Node.js, TypeScript, React, Vite |
+| Image JavaScript | Image | Node.js, React, Vite |
 | Video C++ | Video | g++, OpenCV |
 | Video Python | Video | OpenCV, PyTorch, timm, NumPy, Matplotlib |
 | Multimodal / AI | Cross-Modal | NetworkX, PyTorch, Streamlit, OpenAI Python SDK, SQLite / other DB |
@@ -157,15 +145,20 @@ pip install -r requirements.txt
 - FFT AI demo is offline-first; LLM explanation is optional.
 - Multimodal folder connects multiple domains, supports database integration.
 - Streamlit apps provide GUI for training, prediction, and output saving.
-- TypeScript React demos provide web-based interactive visualization.
+- TypeScript and JavaScript React demos provide web-based interactive visualization.
 
 ## Commit / Changelog Highlights
-- 2025-10-31 — Audio/python/bayesian Bayesian Monte Carlo FFT analysis streamlit app with multimodal.db (sqlite)
-- 2025-10-15 — Added Image/typescript TypeScript React demo for crescent detection and database support
+- 2025-11-18 — Image/javascript javascript React demos for crescent detection
+- 2025-11-13 — Added add channelized wav freq to csv
+- 2025-11-11 — Python and Matlab analogy examples
+- 2025-11-07 — Multimodal db related
+- 2025-11-03 — Multimodal/bayesian app_bayesian_astar.py app_bayesian_astar_db.py
+- 2025-10-31 — Multimodal/bayesian Bayesian Monte Carlo FFT analysis streamlit app with multimodal.db (sqlite)
+- 2025-10-15 — Added Image/typescript typescript React demos for crescent detection
 - 2025-09-23 — Added Audio/python/src/denoise_gan.py — Convolutional 2D GAN for audio denoising (YAML config)
 - 2025-09-21 — Added Image/python/src/app_predict_crescent_tf.py — Streamlit app for interactive GUI
 - 2025-09-20 — Updated Image/python/src/predict_crescent_tf.py — now supports YAML
-- 2025-09-17 — Added Multimodal/graphs/app_images_astar.py, Multimodal/llm/ai_llm_fft_demo.py, Multimodal/llm/test_ai_llm_fft_demo.py
+- 2025-09-17 — Added Multimodal/graphs and Multimodal/llm demos
 - 2025-09-14 — Update Audio pytest to save all output (including PNG) to test_output
 - 2025-09-13 — Update Audio pytest coverage for MLP, NN, RNN
 - 2025-09-11 — Added PyTorch NN model to AI FFT workflow and updated tests
@@ -186,3 +179,4 @@ pip install -r requirements.txt
 ## License
 MIT License  
 © 2025 Julia Wen (wendigilane@gmail.com)
+

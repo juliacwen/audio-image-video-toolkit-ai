@@ -24,3 +24,4 @@ diffusers>=0.20.0
 transformers
 accelerate
 python-dotenv>=1.0.0
+streamlit
