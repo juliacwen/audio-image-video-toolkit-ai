@@ -2,8 +2,8 @@
 
 /* wav_writer.h
  * WavWriter: supports 16/24/32-bit PCM and 32-bit float, multi-channel
- * Author: Julia Wen (wendigilane@gmail.com)
- * Date: 11-19-2025
+ * @author Julia Wen (wendigilane@gmail.com)
+ * @date 2025-11-19
  */
 
 #pragma once
