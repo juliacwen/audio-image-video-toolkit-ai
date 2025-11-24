@@ -1,20 +1,39 @@
-/*live_audio_denoise.cpp
- * Live Audio Denoising with RNNoise and PortAudio (C++17)
- *
+/*
+ * Live Audio Denoising Example using RNNoise and PortAudio
+ * Author: Julia Wen (wendigilane@gmail.com)
  * Features:
- *  - Thread-safe circular buffers for input/output
- *  - RNNoise processing per full frame
+ *  - Real-time audio input/output using PortAudio
+ *  - Multi-channel support (up to MAX_CHANNELS)
+ *  - Lock-free Single-Producer Single-Consumer (SPSC) buffers
+ *    for real-time safe audio streaming
+ *  - Frame-based processing with RNNoise for denoising
  *  - Saves input_raw.wav and output_denoised.wav
  *  - RMS logging to rms_log.txt (console every 10s)
- *  - Real-time safe PortAudio callback
  *
- * Requirements:
+ * Thread Safety:
+ *  - PortAudio callback is the producer, pushing audio into the input buffer
+ *  - Processing thread is the consumer, reading from input buffer and writing
+ *    to output buffer
+ *  - Both buffers are lock-free SPSC queues to avoid blocking in the audio callback
+ *  - `keepRunning` is an atomic flag for clean shutdown on Ctrl+C (SIGINT)
+ *
+ * Real-Time Considerations:
+ *  - No mutexes or blocking operations are used in the audio callback
+ *  - All disk I/O (WAV writing, logging) is done in the processing thread
+ *  - Ensures low-latency, glitch-free audio streaming
+ *
+ * Usage:
+ *  ./live_denoise [output_dir] [bit_depth] [num_channels]
+ *
+ * Dependencies:
  *  - PortAudio (https://www.portaudio.com/)
  *  - RNNoise library (https://github.com/xiph/rnnoise)
  *
- * Author: Julia Wen (wendigilane@gmail.com)
- * Date: 11-19-2025
+ * @par Revision History
+ * - 2025-11-19 — Initial check-in  
+ * - 2025-11-24 — Lock-free Single-Producer Single-Consumer (SPSC) buffers
  */
+
 #include <iostream>
 #include <filesystem>
 #include <csignal>
@@ -22,17 +41,16 @@
 #include <thread>
 #include <vector>
 #include <cmath>
-#include <algorithm>
 #include <fstream>
-#include "wav_writer.h"
-#include "rnnoise.h" 
+#include "../inc/wav_writer.h"
+#include "../inc/SPSCFloatBuffer.h"
+#include "rnnoise.h"
 #include "portaudio.h"
 
 // ------------------ Constants ------------------
 constexpr int FRAME_SIZE = 480;
 constexpr int SAMPLE_RATE = 48000;
 constexpr int NUM_CHANNELS_DEFAULT = 1;
-constexpr int MAX_CHANNELS = 14;
 constexpr int CIRCULAR_BUFFER_FRAMES = 48000;  // 1 second buffer
 constexpr int CONSOLE_INTERVAL_SEC = 10;
 
@@ -40,58 +58,12 @@ constexpr int CONSOLE_INTERVAL_SEC = 10;
 std::atomic<bool> keepRunning{true};
 void intHandler(int) { keepRunning.store(false); }
 
-// ------------------ Thread-safe Circular Buffer ------------------
-class CircularBuffer {
-public:
-    CircularBuffer(size_t size) : buffer(size, 0.0f), head(0), tail(0), count(0) {}
-
-    // Copy and move are deleted (mutex prevents assignment)
-    CircularBuffer(const CircularBuffer&) = delete;
-    CircularBuffer& operator=(const CircularBuffer&) = delete;
-
-    void push(float sample) {
-        std::unique_lock<std::mutex> lock(mutex);
-        buffer[head] = sample;
-        head = (head + 1) % buffer.size();
-        if (count < buffer.size()) count++;
-        else tail = (tail + 1) % buffer.size(); // overwrite oldest if full
-        cond.notify_one();
-    }
-
-    size_t pop(float* out, size_t n) {
-        std::unique_lock<std::mutex> lock(mutex);
-        size_t popped = 0;
-        while (popped < n && count > 0) {
-            out[popped++] = buffer[tail];
-            tail = (tail + 1) % buffer.size();
-            count--;
-        }
-        return popped;
-    }
-
-    size_t available() {
-        std::unique_lock<std::mutex> lock(mutex);
-        return count;
-    }
-
-    void wait_for(size_t n) {
-        std::unique_lock<std::mutex> lock(mutex);
-        cond.wait(lock, [&]{ return count >= n || !keepRunning; });
-    }
-
-private:
-    std::vector<float> buffer;
-    size_t head, tail, count;
-    std::mutex mutex;
-    std::condition_variable cond;
-};
-
 // ------------------ Audio IO Context ------------------
 struct AudioIOContext {
     DenoiseState* st = nullptr;
 
-    CircularBuffer inputBuffer;
-    CircularBuffer outputBuffer;
+    SPSCFloatBuffer inputBuffer;
+    SPSCFloatBuffer outputBuffer;
 
     std::unique_ptr<WavWriter> wavInput;
     std::unique_ptr<WavWriter> wavOutput;
@@ -104,29 +76,35 @@ struct AudioIOContext {
     {}
 };
 
-// ------------------ PortAudio Callback ------------------
-static int audioCallback(const void* inputBuffer, void* outputBuffer,
+// ------------------ PortAudio Callback (Optimized for Real-Time Audio Processing with C++17) ------------------
+static int audioCallback([[maybe_unused]] const void* inputBuffer, 
+                         void* outputBuffer,
                          unsigned long framesPerBuffer,
-                         const PaStreamCallbackTimeInfo*,
-                         PaStreamCallbackFlags,
-                         void* userData)
+                         [[maybe_unused]] const PaStreamCallbackTimeInfo* timeInfo,
+                         [[maybe_unused]] PaStreamCallbackFlags statusFlags,
+                         void* userData) noexcept
 {
     auto* audioIOCtx = static_cast<AudioIOContext*>(userData);
-    const float* in = static_cast<const float*>(inputBuffer);
-    float* out = static_cast<float*>(outputBuffer);
+    const auto* in = static_cast<const float*>(inputBuffer);
+    auto* out = static_cast<float*>(outputBuffer);
 
+    // Early exit if no input
     if (!in) return paContinue;
 
-    int numChannels = audioIOCtx->wavInput->getNumChannels();
-    for (unsigned long i = 0; i < framesPerBuffer * static_cast<unsigned long>(numChannels); i++)
-        audioIOCtx->inputBuffer.push(in[i]);
+    // Calculate total samples (frames * channels)
+    const auto numChannels = audioIOCtx->wavInput->getNumChannels();
+    const auto totalSamples = framesPerBuffer * static_cast<size_t>(numChannels);
 
-    float temp;
-    for (unsigned long i = 0; i < framesPerBuffer * static_cast<unsigned long>(numChannels); i++) {
-        if (audioIOCtx->outputBuffer.pop(&temp, 1) == 1)
-            out[i] = temp;
-        else
-            out[i] = 0.0f;
+    // Push input samples using bulk operation (1 atomic op instead of N)
+    audioIOCtx->inputBuffer.pushBulk(in, totalSamples);
+    
+    // Pop output samples using bulk operation (1 atomic op instead of N)
+    const auto popped = audioIOCtx->outputBuffer.popBulk(out, totalSamples);
+    
+    // Fill remaining with silence if buffer underrun occurred
+    // [[unlikely]] hints to compiler this is the exceptional path
+    if (popped < totalSamples) {
+        std::fill(out + popped, out + totalSamples, 0.0f);
     }
 
     return paContinue;
@@ -142,35 +120,38 @@ void processingThread(AudioIOContext* audioIOCtx, int numChannels)
     auto lastConsole = std::chrono::steady_clock::now();
 
     while (keepRunning) {
-        audioIOCtx->inputBuffer.wait_for(FRAME_SIZE * numChannels);
-        size_t got = audioIOCtx->inputBuffer.pop(inFrame.data(), FRAME_SIZE * numChannels);
-        if (got < FRAME_SIZE * numChannels) continue;
+        while (audioIOCtx->inputBuffer.available() < static_cast<size_t>(FRAME_SIZE * numChannels)) {
+            if (!keepRunning) return;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
 
-        // Process each channel
+        size_t got = 0;
+        for (size_t i = 0; i < static_cast<size_t>(FRAME_SIZE * numChannels); i++) {
+            float s;
+            if (audioIOCtx->inputBuffer.pop(s)) inFrame[i] = s, got++;
+        }
+        if (got < static_cast<size_t>(FRAME_SIZE * numChannels)) continue;
+
         for (int ch = 0; ch < numChannels; ++ch) {
             std::vector<float> inCh(FRAME_SIZE);
             for (int i = 0; i < FRAME_SIZE; ++i)
                 inCh[i] = inFrame[i * numChannels + ch];
 
             std::vector<float> outCh(FRAME_SIZE);
-
             rnnoise_process_frame(audioIOCtx->st, outCh.data(), inCh.data());
 
             for (int i = 0; i < FRAME_SIZE; ++i)
                 outFrame[i * numChannels + ch] = outCh[i];
         }
 
-        // Push to output buffer
-        for (int i = 0; i < FRAME_SIZE * numChannels; ++i)
+        for (int i = 0; i < FRAME_SIZE * numChannels; i++)
             audioIOCtx->outputBuffer.push(outFrame[i]);
 
-        // Write interleaved frames to WAV
         for (int i = 0; i < FRAME_SIZE; ++i) {
             audioIOCtx->wavInput->writeFrame(&inFrame[i * numChannels]);
             audioIOCtx->wavOutput->writeFrame(&outFrame[i * numChannels]);
         }
 
-        // RMS logging
         float inRMS = 0.0f, outRMS = 0.0f;
         for (int i = 0; i < FRAME_SIZE * numChannels; i += numChannels) {
             for (int ch = 0; ch < numChannels; ++ch) {
@@ -206,42 +187,23 @@ int main(int argc, char* argv[])
     if (argc >= 3) bitDepth = std::stoi(argv[2]);
     if (argc >= 4) numChannels = std::stoi(argv[3]);
 
-    // Clamp channels to device max
     Pa_Initialize();
     PaDeviceIndex inDev = Pa_GetDefaultInputDevice();
     const PaDeviceInfo* inInfo = Pa_GetDeviceInfo(inDev);
-    if (numChannels > inInfo->maxInputChannels) {
-        std::cerr << "Warning: requested input channels " << numChannels
-                  << " exceeds device max " << inInfo->maxInputChannels
-                  << ". Reducing to max supported.\n";
-        numChannels = inInfo->maxInputChannels;
-    }
+    if (numChannels > inInfo->maxInputChannels) numChannels = inInfo->maxInputChannels;
 
     PaDeviceIndex outDev = Pa_GetDefaultOutputDevice();
     const PaDeviceInfo* outInfo = Pa_GetDeviceInfo(outDev);
-    if (numChannels > outInfo->maxOutputChannels) {
-        std::cerr << "Warning: requested output channels " << numChannels
-                  << " exceeds device max " << outInfo->maxOutputChannels
-                  << ". Reducing to max supported.\n";
-        numChannels = outInfo->maxOutputChannels;
-    }
-    Pa_Terminate();
+    if (numChannels > outInfo->maxOutputChannels) numChannels = outInfo->maxOutputChannels;
 
-    if (!std::filesystem::exists(outputDir)) {
-        if (!std::filesystem::create_directories(outputDir)) {
-            std::cerr << "ERROR: Could not create output directory: " << outputDir << "\n";
-            return 1;
-        }
-    }
+    if (!std::filesystem::exists(outputDir))
+        std::filesystem::create_directories(outputDir);
 
-    size_t bufferSize = static_cast<size_t>(CIRCULAR_BUFFER_FRAMES) * static_cast<size_t>(numChannels);
+    size_t bufferSize = CIRCULAR_BUFFER_FRAMES * static_cast<size_t>(numChannels);
     AudioIOContext audioIOCtx(bufferSize);
 
     audioIOCtx.st = rnnoise_create(nullptr);
-    if (!audioIOCtx.st) {
-        std::cerr << "ERROR: rnnoise_create failed\n";
-        return 1;
-    }
+    if (!audioIOCtx.st) return 1;
 
     auto inputPath  = outputDir / "input_raw.wav";
     auto outputPath = outputDir / "output_denoised.wav";
@@ -249,11 +211,10 @@ int main(int argc, char* argv[])
 
     audioIOCtx.wavInput  = std::make_unique<WavWriter>(inputPath.string(), SAMPLE_RATE, numChannels, bitDepth);
     audioIOCtx.wavOutput = std::make_unique<WavWriter>(outputPath.string(), SAMPLE_RATE, numChannels, bitDepth);
-
     audioIOCtx.logFile.open(logPath, std::ios::out);
 
     std::cout << "Live denoising started. Ctrl+C to stop...\n";
-    Pa_Initialize();
+
     PaStream* stream = nullptr;
     PaError err = Pa_OpenDefaultStream(
         &stream,
@@ -265,11 +226,10 @@ int main(int argc, char* argv[])
         audioCallback,
         &audioIOCtx
     );
-    if (err != paNoError) {
-        std::cerr << "Pa_OpenDefaultStream error: " << Pa_GetErrorText(err) << "\n";
-        return 1;
-    }
-    Pa_StartStream(stream);
+    if (err != paNoError) return 1;
+
+    err = Pa_StartStream(stream);
+    if (err != paNoError) return 1;
 
     std::thread procThread(processingThread, &audioIOCtx, numChannels);
     procThread.join();
@@ -281,6 +241,6 @@ int main(int argc, char* argv[])
     audioIOCtx.logFile.close();
 
     std::cout << "Stopped. Saved " << inputPath << ", " << outputPath << ", " << logPath << "\n";
-
     return 0;
 }
+
