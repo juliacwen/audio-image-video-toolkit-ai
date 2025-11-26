@@ -71,11 +71,13 @@ class SPSCFloatBuffer {
 public:
     // Explicit constructor prevents accidental implicit conversions
     explicit SPSCFloatBuffer(size_t capacity)
-        : size_(nextPowerOf2(capacity + 1))  // +1 to distinguish full from empty
-        , mask_(size_ - 1)                    // Bitmask for fast wrapping
-        , buffer_(new float[size_])
+        : size_(nextPowerOf2(capacity + 1))
+        , mask_(size_ - 1)
+        , buffer_(new float[size_]())  // Added () to zero-initialize!
         , head_(0)
-        , tail_(0) {}
+        , tail_(0) {
+        std::fill_n(buffer_.get(), size_, 0.0f); // Explicitly zero the buffer for safety
+    }
 
     // Prevent copying to avoid accidental shared ownership
     SPSCFloatBuffer(const SPSCFloatBuffer&) = delete;

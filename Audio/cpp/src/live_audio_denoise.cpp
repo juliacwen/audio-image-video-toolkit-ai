@@ -22,6 +22,15 @@
  *  - All disk I/O (WAV writing, logging) is done in the processing thread
  *  - Ensures low-latency, glitch-free audio streaming
  *
+ * Denormal Handling:
+ *  - Very small floating-point values (< ~1.175e-38 for float) are called denormals or subnormals
+ *    which can cause severe CPU slowdown in DSP/audio code
+ *  - DAZ (Denormals-Are-Zero) treats incoming denormal numbers as zero
+ *  - FTZ (Flush-To-Zero) sets tiny results of calculations to zero
+ *  - Enabling FTZ + DAZ prevents performance issues from denormals while preserving normal audio behavior
+ *  - Implemented via `denormal_control::disableDenormals()` or RAII `denormal_control::AutoDisable`
+ *  - Optional software guard `denormal_control::guardDenormal(value, guard)` clamps extremely small values
+
  * Usage:
  *  ./live_denoise [output_dir] [bit_depth] [num_channels]
  *
@@ -32,6 +41,7 @@
  * @par Revision History
  * - 2025-11-19 — Initial check-in  
  * - 2025-11-24 — Lock-free Single-Producer Single-Consumer (SPSC) buffers
+ * - 2025-11-25 — Add denormal control
  */
 
 #include <iostream>
@@ -44,6 +54,7 @@
 #include <fstream>
 #include "../inc/wav_writer.h"
 #include "../inc/SPSCFloatBuffer.h"
+#include "../inc/denormal_control.h"
 #include "rnnoise.h"
 #include "portaudio.h"
 
@@ -51,8 +62,11 @@
 constexpr int FRAME_SIZE = 480;
 constexpr int SAMPLE_RATE = 48000;
 constexpr int NUM_CHANNELS_DEFAULT = 1;
-constexpr int CIRCULAR_BUFFER_FRAMES = 48000;  // 1 second buffer
+constexpr int CIRCULAR_BUFFER_FRAMES = 48000;
 constexpr int CONSOLE_INTERVAL_SEC = 10;
+
+// Denormal guard value (toggled each buffer to prevent DC buildup)
+static float denormalGuard = 1.0e-20f;
 
 // ------------------ Signal Handling ------------------
 std::atomic<bool> keepRunning{true};
@@ -60,7 +74,7 @@ void intHandler(int) { keepRunning.store(false); }
 
 // ------------------ Audio IO Context ------------------
 struct AudioIOContext {
-    DenoiseState* st = nullptr;
+    std::vector<DenoiseState*> states;
 
     SPSCFloatBuffer inputBuffer;
     SPSCFloatBuffer outputBuffer;
@@ -70,13 +84,24 @@ struct AudioIOContext {
 
     std::ofstream logFile;
 
-    AudioIOContext(size_t bufferSize)
+    AudioIOContext(size_t bufferSize, int numChannels)
         : inputBuffer(bufferSize),
           outputBuffer(bufferSize)
-    {}
+    {
+        states.resize(numChannels);
+        for (int i = 0; i < numChannels; ++i) {
+            states[i] = rnnoise_create(nullptr);
+        }
+    }
+
+    ~AudioIOContext() {
+        for (auto* state : states) {
+            if (state) rnnoise_destroy(state);
+        }
+    }
 };
 
-// ------------------ PortAudio Callback (Optimized for Real-Time Audio Processing with C++17) ------------------
+// ------------------ PortAudio Callback ------------------
 static int audioCallback([[maybe_unused]] const void* inputBuffer, 
                          void* outputBuffer,
                          unsigned long framesPerBuffer,
@@ -88,21 +113,18 @@ static int audioCallback([[maybe_unused]] const void* inputBuffer,
     const auto* in = static_cast<const float*>(inputBuffer);
     auto* out = static_cast<float*>(outputBuffer);
 
-    // Early exit if no input
-    if (!in) return paContinue;
-
-    // Calculate total samples (frames * channels)
     const auto numChannels = audioIOCtx->wavInput->getNumChannels();
     const auto totalSamples = framesPerBuffer * static_cast<size_t>(numChannels);
 
-    // Push input samples using bulk operation (1 atomic op instead of N)
-    audioIOCtx->inputBuffer.pushBulk(in, totalSamples);
+    if (!in) {
+        std::vector<float> silence(totalSamples, 0.0f);
+        audioIOCtx->inputBuffer.pushBulk(silence.data(), totalSamples);
+    } else {
+        audioIOCtx->inputBuffer.pushBulk(in, totalSamples);
+    }
     
-    // Pop output samples using bulk operation (1 atomic op instead of N)
     const auto popped = audioIOCtx->outputBuffer.popBulk(out, totalSamples);
     
-    // Fill remaining with silence if buffer underrun occurred
-    // [[unlikely]] hints to compiler this is the exceptional path
     if (popped < totalSamples) {
         std::fill(out + popped, out + totalSamples, 0.0f);
     }
@@ -113,8 +135,11 @@ static int audioCallback([[maybe_unused]] const void* inputBuffer,
 // ------------------ Processing Thread ------------------
 void processingThread(AudioIOContext* audioIOCtx, int numChannels)
 {
-    std::vector<float> inFrame(FRAME_SIZE * numChannels);
-    std::vector<float> outFrame(FRAME_SIZE * numChannels);
+    // Enable hardware denormal handling
+    denormal_control::AutoDisable autoDisable;  // stays the same
+
+    std::vector<float> inFrame(FRAME_SIZE * numChannels, 0.0f);
+    std::vector<float> outFrame(FRAME_SIZE * numChannels, 0.0f);
 
     size_t framesProcessed = 0;
     auto lastConsole = std::chrono::steady_clock::now();
@@ -128,30 +153,48 @@ void processingThread(AudioIOContext* audioIOCtx, int numChannels)
         size_t got = 0;
         for (size_t i = 0; i < static_cast<size_t>(FRAME_SIZE * numChannels); i++) {
             float s;
-            if (audioIOCtx->inputBuffer.pop(s)) inFrame[i] = s, got++;
+            if (audioIOCtx->inputBuffer.pop(s)) {
+                // Fully qualified namespace
+                inFrame[i] = denormal_control::guardDenormal(s, denormalGuard);
+                got++;
+            }
         }
         if (got < static_cast<size_t>(FRAME_SIZE * numChannels)) continue;
+        
+        // Toggle denormal guard sign for next buffer
+        denormalGuard = -denormalGuard;
 
+        // Process each channel with its own state
         for (int ch = 0; ch < numChannels; ++ch) {
             std::vector<float> inCh(FRAME_SIZE);
             for (int i = 0; i < FRAME_SIZE; ++i)
                 inCh[i] = inFrame[i * numChannels + ch];
 
             std::vector<float> outCh(FRAME_SIZE);
-            rnnoise_process_frame(audioIOCtx->st, outCh.data(), inCh.data());
+            rnnoise_process_frame(audioIOCtx->states[ch], outCh.data(), inCh.data());
 
-            for (int i = 0; i < FRAME_SIZE; ++i)
-                outFrame[i * numChannels + ch] = outCh[i];
+            // Apply denormal guard to output as well
+            for (int i = 0; i < FRAME_SIZE; ++i) {
+                float sample = outCh[i];
+                // Clamp very small values to zero
+                if (sample > -1.0e-30f && sample < 1.0e-30f) {
+                    sample = 0.0f;
+                }
+                outFrame[i * numChannels + ch] = sample;
+            }
         }
 
+        // Push output to buffer
         for (int i = 0; i < FRAME_SIZE * numChannels; i++)
             audioIOCtx->outputBuffer.push(outFrame[i]);
 
+        // Write to WAV files
         for (int i = 0; i < FRAME_SIZE; ++i) {
             audioIOCtx->wavInput->writeFrame(&inFrame[i * numChannels]);
             audioIOCtx->wavOutput->writeFrame(&outFrame[i * numChannels]);
         }
 
+        // Calculate RMS
         float inRMS = 0.0f, outRMS = 0.0f;
         for (int i = 0; i < FRAME_SIZE * numChannels; i += numChannels) {
             for (int ch = 0; ch < numChannels; ++ch) {
@@ -177,6 +220,9 @@ void processingThread(AudioIOContext* audioIOCtx, int numChannels)
 // ------------------ Main ------------------
 int main(int argc, char* argv[])
 {
+    // Enable denormal handling, flush-to-zero / DAZ.
+    denormal_control::AutoDisable autoDisable; // Constructor: calls disableDenormals() → sets FTZ/DAZ in CPU.
+
     std::signal(SIGINT, intHandler);
 
     std::filesystem::path outputDir = "test_output";
@@ -200,10 +246,7 @@ int main(int argc, char* argv[])
         std::filesystem::create_directories(outputDir);
 
     size_t bufferSize = CIRCULAR_BUFFER_FRAMES * static_cast<size_t>(numChannels);
-    AudioIOContext audioIOCtx(bufferSize);
-
-    audioIOCtx.st = rnnoise_create(nullptr);
-    if (!audioIOCtx.st) return 1;
+    AudioIOContext audioIOCtx(bufferSize, numChannels);
 
     auto inputPath  = outputDir / "input_raw.wav";
     auto outputPath = outputDir / "output_denoised.wav";
@@ -213,7 +256,14 @@ int main(int argc, char* argv[])
     audioIOCtx.wavOutput = std::make_unique<WavWriter>(outputPath.string(), SAMPLE_RATE, numChannels, bitDepth);
     audioIOCtx.logFile.open(logPath, std::ios::out);
 
-    std::cout << "Live denoising started. Ctrl+C to stop...\n";
+#if defined(HAS_SSE_DENORMAL_CONTROL)
+    std::cout << "Live denoising started (x86/x64 with SSE denormal control)\n";
+#elif defined(HAS_ARM_DENORMAL_CONTROL)
+    std::cout << "Live denoising started (ARM64 with FPU denormal control)\n";
+#else
+    std::cout << "Live denoising started (software denormal guard only)\n";
+#endif
+    std::cout << "Ctrl+C to stop...\n";
 
     PaStream* stream = nullptr;
     PaError err = Pa_OpenDefaultStream(
@@ -237,10 +287,8 @@ int main(int argc, char* argv[])
     Pa_StopStream(stream);
     Pa_CloseStream(stream);
     Pa_Terminate();
-    rnnoise_destroy(audioIOCtx.st);
     audioIOCtx.logFile.close();
 
     std::cout << "Stopped. Saved " << inputPath << ", " << outputPath << ", " << logPath << "\n";
     return 0;
 }
-
