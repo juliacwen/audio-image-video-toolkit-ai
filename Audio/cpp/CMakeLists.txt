@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.10)
 project(AudioTools LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -33,6 +33,15 @@ elseif(APPLE)
 else()
   set(MATH_LIB "")
 endif()
+
+# ------------------------
+# Includes used by manual build
+# ------------------------
+include_directories(
+  ${PROJECT_SOURCE_DIR}/inc
+  ${PROJECT_SOURCE_DIR}/rnnoise/include
+  ${PROJECT_SOURCE_DIR}/src  # Added for utility headers
+)
 
 # ------------------------
 # RNNoise static lib (explicit path in repo)
@@ -129,6 +138,21 @@ message(STATUS "PortAudio include: ${PORTAUDIO_INCLUDE_DIR_FOUND}")
 message(STATUS "PortAudio lib: ${PORTAUDIO_LIBRARY_FOUND}")
 
 # ------------------------
+# Shared Utility Libraries
+# ------------------------
+# WAV processing utilities
+add_library(wav_utils STATIC
+  src/wav_utils.cpp
+)
+target_include_directories(wav_utils PUBLIC ${PROJECT_SOURCE_DIR}/inc ${PROJECT_SOURCE_DIR}/src)
+
+# FFT utilities
+add_library(fft_utils STATIC
+  src/fft_utils.cpp
+)
+target_include_directories(fft_utils PUBLIC ${PROJECT_SOURCE_DIR}/inc ${PROJECT_SOURCE_DIR}/src)
+
+# ------------------------
 # Executables
 # ------------------------
 # live_audio_denoise uses wav_writer.cpp (utility) and PortAudio + RNNoise
@@ -136,37 +160,23 @@ add_executable(live_audio_denoise
   src/live_audio_denoise.cpp
   src/wav_writer.cpp
 )
-target_include_directories(live_audio_denoise PRIVATE 
-  ${PROJECT_SOURCE_DIR}/inc
-  ${PROJECT_SOURCE_DIR}/rnnoise/include
-  ${PORTAUDIO_INCLUDE_DIR_FOUND}
-)
-target_link_libraries(live_audio_denoise PRIVATE 
-  ${PORTAUDIO_LIBRARY_FOUND} 
-  ${MATH_LIB}
-)
+target_include_directories(live_audio_denoise PRIVATE ${PORTAUDIO_INCLUDE_DIR_FOUND})
+target_link_libraries(live_audio_denoise PRIVATE ${PORTAUDIO_LIBRARY_FOUND} ${MATH_LIB})
 if(RNNOISE_LIB)
   target_link_libraries(live_audio_denoise PRIVATE ${RNNOISE_LIB})
 endif()
 
-# standalone utilities (no PortAudio)
-add_executable(wav_freq_csv src/wav_freq_csv.cpp)
-target_include_directories(wav_freq_csv PRIVATE ${PROJECT_SOURCE_DIR}/inc)
-if(MATH_LIB)
-  target_link_libraries(wav_freq_csv PRIVATE ${MATH_LIB})
-endif()
-
-add_executable(wav_freq_csv_channelized src/wav_freq_csv_channelized.cpp)
-target_include_directories(wav_freq_csv_channelized PRIVATE ${PROJECT_SOURCE_DIR}/inc)
-if(MATH_LIB)
-  target_link_libraries(wav_freq_csv_channelized PRIVATE ${MATH_LIB})
-endif()
-
+# wav_to_csv - simple WAV to CSV converter
 add_executable(wav_to_csv src/wav_to_csv.cpp)
-target_include_directories(wav_to_csv PRIVATE ${PROJECT_SOURCE_DIR}/inc)
-if(MATH_LIB)
-  target_link_libraries(wav_to_csv PRIVATE ${MATH_LIB})
-endif()
+target_link_libraries(wav_to_csv PRIVATE wav_utils)
+
+# wav_freq_csv - single channel with FFT
+add_executable(wav_freq_csv src/wav_freq_csv.cpp)
+target_link_libraries(wav_freq_csv PRIVATE wav_utils fft_utils)
+
+# wav_freq_csv_channelized - multi-channel with FFT
+add_executable(wav_freq_csv_channelized src/wav_freq_csv_channelized.cpp)
+target_link_libraries(wav_freq_csv_channelized PRIVATE wav_utils fft_utils)
 
 # ------------------------
 # GoogleTest find & robust imported-target creation
@@ -206,20 +216,17 @@ enable_testing()
 # Test executables (they call the utility exes)
 # ------------------------
 add_executable(test_wav_freq_csv tests/test_wav_freq_csv.cpp)
-target_include_directories(test_wav_freq_csv PRIVATE ${PROJECT_SOURCE_DIR}/inc)
-target_link_libraries(test_wav_freq_csv PRIVATE GTest::GTest GTest::Main Threads::Threads)
+target_link_libraries(test_wav_freq_csv PRIVATE GTest::GTest GTest::Main pthread)
 add_test(NAME test_wav_freq_csv COMMAND test_wav_freq_csv)
 set_tests_properties(test_wav_freq_csv PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 add_executable(test_wav_freq_csv_multi_channel tests/test_wav_freq_csv_multi_channel.cpp)
-target_include_directories(test_wav_freq_csv_multi_channel PRIVATE ${PROJECT_SOURCE_DIR}/inc)
-target_link_libraries(test_wav_freq_csv_multi_channel PRIVATE GTest::GTest GTest::Main Threads::Threads)
+target_link_libraries(test_wav_freq_csv_multi_channel PRIVATE GTest::GTest GTest::Main pthread)
 add_test(NAME test_wav_freq_csv_multi_channel COMMAND test_wav_freq_csv_multi_channel)
 set_tests_properties(test_wav_freq_csv_multi_channel PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 add_executable(test_wav_to_csv tests/test_wav_to_csv.cpp)
-target_include_directories(test_wav_to_csv PRIVATE ${PROJECT_SOURCE_DIR}/inc)
-target_link_libraries(test_wav_to_csv PRIVATE GTest::GTest GTest::Main Threads::Threads)
+target_link_libraries(test_wav_to_csv PRIVATE GTest::GTest GTest::Main pthread)
 add_test(NAME test_wav_to_csv COMMAND test_wav_to_csv)
 set_tests_properties(test_wav_to_csv PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
@@ -227,4 +234,5 @@ set_tests_properties(test_wav_to_csv PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIM
 # Summary messages
 # ------------------------
 message(STATUS "Configured AudioTools project.")
+message(STATUS "Utility libraries: wav_utils, fft_utils")
 message(STATUS "Targets: live_audio_denoise, wav_freq_csv, wav_freq_csv_channelized, wav_to_csv, and tests.")
