@@ -2,12 +2,15 @@
  * @file wav_utils.cpp
  * @brief Common utilities for WAV file processing (implementation)
  * @author Julia Wen (wendigilane@gmail.com)
- * @date 11-21-2025
+ * - 11-21-2025 — Initial check-in  
+ * - 12-02-2025 — Update with improvement
  */
 
 #include "../inc/wav_utils.h"
 #include <algorithm>
 #include <cmath>
+#include <array>
+#include <stdexcept>
 #include "../inc/error_codes.h"
 
 namespace wav {
@@ -37,6 +40,10 @@ const size_t FLUSH_INTERVAL = 1000;
 // ============================================================================
 
 size_t WavFormat::frames() const {
+    // Validate all critical fields before calculation
+    if (channels == 0 || bitsPerSample == 0 || bitsPerSample % 8 != 0 || sampleRate == 0) {
+        return 0;
+    }
     return dataSize / (bitsPerSample / 8) / channels;
 }
 
@@ -58,16 +65,18 @@ bool WavFormat::isSupportedFormat() const {
 // ============================================================================
 
 uint16_t readU16(std::istream& in) {
-    uint8_t b[2];
-    if (!in.read(reinterpret_cast<char*>(b), BYTES_PER_SAMPLE_16)) 
+    std::array<uint8_t, 2> b;
+    if (!in.read(reinterpret_cast<char*>(b.data()), BYTES_PER_SAMPLE_16)) {
         throw ERR_READ_FAILURE;
+    }
     return static_cast<uint16_t>(b[0] | (b[1] << 8));
 }
 
 uint32_t readU32(std::istream& in) {
-    uint8_t b[4];
-    if (!in.read(reinterpret_cast<char*>(b), BYTES_PER_SAMPLE_32)) 
+    std::array<uint8_t, 4> b;
+    if (!in.read(reinterpret_cast<char*>(b.data()), BYTES_PER_SAMPLE_32)) {
         throw ERR_READ_FAILURE;
+    }
     return static_cast<uint32_t>(b[0]) | (static_cast<uint32_t>(b[1]) << 8) | 
            (static_cast<uint32_t>(b[2]) << 16) | (static_cast<uint32_t>(b[3]) << 24);
 }
@@ -78,7 +87,9 @@ int16_t readI16(const uint8_t* p) {
 
 int32_t readI24(const uint8_t* p) {
     int32_t v = (p[0] | (p[1] << 8) | (p[2] << 16));
-    if (v & SIGN_BIT_24) v |= SIGN_EXTEND_24;
+    if (v & SIGN_BIT_24) {
+        v |= SIGN_EXTEND_24;
+    }
     return v;
 }
 
@@ -88,18 +99,26 @@ int32_t readI24(const uint8_t* p) {
 
 int parseWavHeader(std::istream& f, WavFormat& fmt) {
     // Read RIFF header
-    char riff[4];
-    f.read(riff, 4);
-    if (std::string(riff, 4) != "RIFF") {
+    std::array<char, 4> riff;
+    if (!f.read(riff.data(), 4)) {
+        std::cerr << "Invalid WAV file: failed to read RIFF header\n";
+        return ERR_INVALID_HEADER;
+    }
+    
+    if (std::string(riff.data(), 4) != "RIFF") {
         std::cerr << "Invalid WAV file: missing RIFF header\n";
         return ERR_INVALID_HEADER;
     }
     
     readU32(f); // chunk size
     
-    char wave[4];
-    f.read(wave, 4);
-    if (std::string(wave, 4) != "WAVE") {
+    std::array<char, 4> wave;
+    if (!f.read(wave.data(), 4)) {
+        std::cerr << "Invalid WAV file: failed to read WAVE header\n";
+        return ERR_INVALID_HEADER;
+    }
+    
+    if (std::string(wave.data(), 4) != "WAVE") {
         std::cerr << "Invalid WAV file: missing WAVE header\n";
         return ERR_INVALID_HEADER;
     }
@@ -108,10 +127,11 @@ int parseWavHeader(std::istream& f, WavFormat& fmt) {
     
     // Parse chunks
     while (f && !(have_fmt && have_data)) {
-        char id[4];
-        if (!f.read(id, 4)) break;
+        std::array<char, 4> id;
+        if (!f.read(id.data(), 4)) break;
+        
         uint32_t sz = readU32(f);
-        std::string sid(id, 4);
+        std::string sid(id.data(), 4);
         
         if (sid == "fmt ") {
             have_fmt = true;
@@ -121,15 +141,22 @@ int parseWavHeader(std::istream& f, WavFormat& fmt) {
             readU32(f);  // byte rate
             readU16(f);  // block align
             fmt.bitsPerSample = readU16(f);
-            if (sz > 16) f.seekg(sz - 16, std::ios::cur);
+            
+            // Skip any extra format bytes
+            if (sz > 16) {
+                f.seekg(sz - 16, std::ios::cur);
+            }
         } 
         else if (sid == "data") {
             have_data = true;
             fmt.dataPos = f.tellg();
             fmt.dataSize = sz;
+            
+            // Skip data chunk (and padding byte if odd size)
             f.seekg(sz + (sz & 1), std::ios::cur);
         } 
         else {
+            // Skip unknown chunk (and padding byte if odd size)
             f.seekg(sz + (sz & 1), std::ios::cur);
         }
     }
@@ -177,7 +204,14 @@ double decodeSample(const uint8_t* ptr, const WavFormat& fmt) {
 double decodeSampleMono(const std::vector<uint8_t>& raw, size_t frame, 
                         const WavFormat& fmt) {
     const size_t sampleBytes = fmt.bytesPerSample();
-    const uint8_t* ptr = &raw[frame * fmt.channels * sampleBytes];
+    const size_t offset = frame * fmt.channels * sampleBytes;
+    
+    // Bounds check
+    if (offset + sampleBytes > raw.size()) {
+        throw std::out_of_range("Frame index out of range in decodeSampleMono");
+    }
+    
+    const uint8_t* ptr = &raw[offset];
     
     if (fmt.channels == 1) {
         return decodeSample(ptr, fmt);
@@ -191,8 +225,19 @@ double decodeSampleMono(const std::vector<uint8_t>& raw, size_t frame,
 
 double decodeSampleChannel(const std::vector<uint8_t>& raw, size_t frame, 
                            size_t channel, const WavFormat& fmt) {
+    // Bounds checks
+    if (channel >= fmt.channels) {
+        throw std::out_of_range("Channel index out of range");
+    }
+    
     const size_t sampleBytes = fmt.bytesPerSample();
-    const uint8_t* ptr = &raw[frame * fmt.channels * sampleBytes + channel * sampleBytes];
+    const size_t offset = frame * fmt.channels * sampleBytes + channel * sampleBytes;
+    
+    if (offset + sampleBytes > raw.size()) {
+        throw std::out_of_range("Frame index out of range in decodeSampleChannel");
+    }
+    
+    const uint8_t* ptr = &raw[offset];
     return decodeSample(ptr, fmt);
 }
 
@@ -218,9 +263,11 @@ double windowValue(WindowType type, size_t i, size_t N) {
 WindowType parseWindow(const std::string& w) {
     std::string s = w;
     std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+    
     if (s == "hann") return WindowType::Hann;
     if (s == "hamming") return WindowType::Hamming;
     if (s == "blackman") return WindowType::Blackman;
+    
     return WindowType::Rectangular;
 }
 
@@ -238,7 +285,9 @@ std::vector<double> generateWindowCoeffs(WindowType type, size_t N) {
 
 CsvWriter::CsvWriter(const std::string& path) : lineCount_(0) {
     file_.open(path);
-    if (!file_) throw ERR_CSV_WRITE_FAILURE;
+    if (!file_) {
+        throw ERR_CSV_WRITE_FAILURE;
+    }
 }
 
 CsvWriter::~CsvWriter() {
@@ -279,8 +328,10 @@ void CsvWriter::flush() {
 }
 
 void CsvWriter::close() {
-    file_.flush();
-    file_.close();
+    if (file_.is_open()) {
+        file_.flush();
+        file_.close();
+    }
 }
 
 } // namespace wav

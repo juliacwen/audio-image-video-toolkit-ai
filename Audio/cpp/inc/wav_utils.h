@@ -2,7 +2,9 @@
  * @file wav_utils.h
  * @brief Common utilities for WAV file processing (header declarations)
  * Author: Julia Wen (wendigilane@gmail.com)
- * Date: 11-21-2025
+ * @par Revision History
+ * - 11-21-2025 — Initial check-in  
+ * - 12-02-2025 — Update with improvement
  */
 
 #ifndef WAV_UTILS_H

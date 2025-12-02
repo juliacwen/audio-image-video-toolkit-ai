@@ -1,7 +1,7 @@
 /**
  * @file test_wav_writer.cpp
  * @brief unit tests (gtest)for WavWriter class
- * @author Julia Wen
+ * @author Julia Wen (wendigilane@gmail.com)
  * @date 12-02-2025
  */
 
