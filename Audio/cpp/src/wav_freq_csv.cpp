@@ -31,9 +31,9 @@
  *   - output_spectrum.csv: Frequency(Hz),Magnitude (FFT spectrum)
  * 
  * @par Revision History
- * - 2025-09-07 — Initial check-in  
- * - 2025-11-12 — Added `error_codes.h`, error handling, improvement  
- * - 2025-11-21 — Code refactor  
+ * - 09-07-2025 — Initial check-in  
+ * - 11-12-2025 — Added `error_codes.h`, error handling, improvement  
+ * - 11-21-2025 — Code refactor  
  */
 #include <iostream>
 #include <fstream>

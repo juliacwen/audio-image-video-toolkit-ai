@@ -2,7 +2,6 @@
  * @file wav_freq_csv_channelized.cpp
  * @brief Multi-channel WAV audio processor with windowing and FFT spectrum analysis
  * @author Julia Wen (wendigilane@gmail.com)
- * @date 2025-11-21
  * This program reads a multi-channel WAV audio file (PCM 16/24-bit or Float 32-bit),
  * applies an optional window function, and outputs per-channel:
  *   1. A CSV file containing the time-domain samples (windowed)
@@ -30,6 +29,9 @@
  * Output files (per channel):
  *   - output_dir/filename_chN.csv: Index,Sample (windowed time-domain data)
  *   - output_dir/filename_spectrum_chN.csv: Frequency(Hz),Magnitude (FFT spectrum)
+ * 
+ * @par Revision History
+ * - 11-21-2025 — Initial check-in  
  */
 
 #include <iostream>

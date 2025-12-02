@@ -231,6 +231,14 @@ add_test(NAME test_wav_to_csv COMMAND test_wav_to_csv)
 set_tests_properties(test_wav_to_csv PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 # ------------------------
+# Unit test for WavWriter utility class
+# ------------------------
+add_executable(test_wav_writer tests/test_wav_writer.cpp src/wav_writer.cpp)
+target_link_libraries(test_wav_writer PRIVATE GTest::GTest GTest::Main pthread)
+add_test(NAME test_wav_writer COMMAND test_wav_writer)
+set_tests_properties(test_wav_writer PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+
+# ------------------------
 # Summary messages
 # ------------------------
 message(STATUS "Configured AudioTools project.")

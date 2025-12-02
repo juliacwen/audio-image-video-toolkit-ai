@@ -2,7 +2,7 @@
  * @file fft_utils.cpp
  * @brief Fast Fourier Transform utilities (implementation)
  * @author Julia Wen (wendigilane@gmail.com)
- * @date 2025-11-21
+ * @date 11-21-2025
  */
 
 #include "../inc/fft_utils.h"

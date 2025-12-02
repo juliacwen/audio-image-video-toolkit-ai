@@ -2,7 +2,7 @@
  * @file wav_utils.cpp
  * @brief Common utilities for WAV file processing (implementation)
  * @author Julia Wen (wendigilane@gmail.com)
- * @date 2025-11-21
+ * @date 11-21-2025
  */
 
 #include "../inc/wav_utils.h"
