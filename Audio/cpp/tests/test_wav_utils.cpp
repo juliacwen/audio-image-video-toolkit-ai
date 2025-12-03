@@ -18,10 +18,10 @@ using namespace wav;
 using ::testing::DoubleNear;
 
 // ============================================================================
-// Test Fixtures
+// Google Test Fixture
 // ============================================================================
 
-class TestWavUtils : public ::testing::Test {
+class WavUtilsTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Common setup
@@ -74,7 +74,7 @@ protected:
 // WavFormat Tests
 // ============================================================================
 
-TEST_F(TestWavUtils, WavFormat_Frames_Calculation) {
+TEST_F(WavUtilsTest, WavFormat_Frames_Calculation) {
     WavFormat fmt;
     fmt.dataSize = 1000;
     fmt.bitsPerSample = 16;
@@ -84,7 +84,7 @@ TEST_F(TestWavUtils, WavFormat_Frames_Calculation) {
     EXPECT_EQ(fmt.frames(), 250);
 }
 
-TEST_F(TestWavUtils, WavFormat_Frames_ZeroChannels) {
+TEST_F(WavUtilsTest, WavFormat_Frames_ZeroChannels) {
     WavFormat fmt;
     fmt.dataSize = 1000;
     fmt.bitsPerSample = 16;
@@ -93,7 +93,7 @@ TEST_F(TestWavUtils, WavFormat_Frames_ZeroChannels) {
     EXPECT_EQ(fmt.frames(), 0);
 }
 
-TEST_F(TestWavUtils, WavFormat_Frames_ZeroBitsPerSample) {
+TEST_F(WavUtilsTest, WavFormat_Frames_ZeroBitsPerSample) {
     WavFormat fmt;
     fmt.dataSize = 1000;
     fmt.bitsPerSample = 0;
@@ -102,7 +102,7 @@ TEST_F(TestWavUtils, WavFormat_Frames_ZeroBitsPerSample) {
     EXPECT_EQ(fmt.frames(), 0);
 }
 
-TEST_F(TestWavUtils, WavFormat_Frames_InvalidBitsPerSample) {
+TEST_F(WavUtilsTest, WavFormat_Frames_InvalidBitsPerSample) {
     WavFormat fmt;
     fmt.dataSize = 1000;
     fmt.bitsPerSample = 7;  // Not divisible by 8
@@ -112,7 +112,7 @@ TEST_F(TestWavUtils, WavFormat_Frames_InvalidBitsPerSample) {
     EXPECT_EQ(fmt.frames(), 0);  // Should return 0 for invalid input
 }
 
-TEST_F(TestWavUtils, WavFormat_Frames_ZeroSampleRate) {
+TEST_F(WavUtilsTest, WavFormat_Frames_ZeroSampleRate) {
     WavFormat fmt;
     fmt.dataSize = 1000;
     fmt.bitsPerSample = 16;
@@ -122,7 +122,7 @@ TEST_F(TestWavUtils, WavFormat_Frames_ZeroSampleRate) {
     EXPECT_EQ(fmt.frames(), 0);  // Should return 0 for invalid sample rate
 }
 
-TEST_F(TestWavUtils, WavFormat_BytesPerSample) {
+TEST_F(WavUtilsTest, WavFormat_BytesPerSample) {
     WavFormat fmt;
     
     fmt.bitsPerSample = 16;
@@ -135,7 +135,7 @@ TEST_F(TestWavUtils, WavFormat_BytesPerSample) {
     EXPECT_EQ(fmt.bytesPerSample(), 4);
 }
 
-TEST_F(TestWavUtils, WavFormat_IsValid) {
+TEST_F(WavUtilsTest, WavFormat_IsValid) {
     WavFormat fmt;
     fmt.format = 0;
     fmt.channels = 0;
@@ -150,7 +150,7 @@ TEST_F(TestWavUtils, WavFormat_IsValid) {
     EXPECT_TRUE(fmt.isValid());
 }
 
-TEST_F(TestWavUtils, WavFormat_IsSupportedFormat) {
+TEST_F(WavUtilsTest, WavFormat_IsSupportedFormat) {
     WavFormat fmt;
     
     // PCM 16-bit (supported)
@@ -180,7 +180,7 @@ TEST_F(TestWavUtils, WavFormat_IsSupportedFormat) {
 // Low-level Read Function Tests
 // ============================================================================
 
-TEST_F(TestWavUtils, ReadU16_ValidData) {
+TEST_F(WavUtilsTest, ReadU16_ValidData) {
     std::stringstream ss;
     uint8_t data[] = {0x34, 0x12}; // Little-endian 0x1234
     ss.write(reinterpret_cast<char*>(data), 2);
@@ -188,7 +188,7 @@ TEST_F(TestWavUtils, ReadU16_ValidData) {
     EXPECT_EQ(readU16(ss), 0x1234);
 }
 
-TEST_F(TestWavUtils, ReadU16_InsufficientData) {
+TEST_F(WavUtilsTest, ReadU16_InsufficientData) {
     std::stringstream ss;
     uint8_t data[] = {0x34}; // Only 1 byte
     ss.write(reinterpret_cast<char*>(data), 1);
@@ -196,7 +196,7 @@ TEST_F(TestWavUtils, ReadU16_InsufficientData) {
     EXPECT_THROW(readU16(ss), int);
 }
 
-TEST_F(TestWavUtils, ReadU32_ValidData) {
+TEST_F(WavUtilsTest, ReadU32_ValidData) {
     std::stringstream ss;
     uint8_t data[] = {0x78, 0x56, 0x34, 0x12}; // Little-endian 0x12345678
     ss.write(reinterpret_cast<char*>(data), 4);
@@ -204,7 +204,7 @@ TEST_F(TestWavUtils, ReadU32_ValidData) {
     EXPECT_EQ(readU32(ss), 0x12345678);
 }
 
-TEST_F(TestWavUtils, ReadU32_InsufficientData) {
+TEST_F(WavUtilsTest, ReadU32_InsufficientData) {
     std::stringstream ss;
     uint8_t data[] = {0x78, 0x56}; // Only 2 bytes
     ss.write(reinterpret_cast<char*>(data), 2);
@@ -212,27 +212,27 @@ TEST_F(TestWavUtils, ReadU32_InsufficientData) {
     EXPECT_THROW(readU32(ss), int);
 }
 
-TEST_F(TestWavUtils, ReadI16_PositiveValue) {
+TEST_F(WavUtilsTest, ReadI16_PositiveValue) {
     uint8_t data[] = {0x00, 0x40}; // 16384
     EXPECT_EQ(readI16(data), 16384);
 }
 
-TEST_F(TestWavUtils, ReadI16_NegativeValue) {
+TEST_F(WavUtilsTest, ReadI16_NegativeValue) {
     uint8_t data[] = {0x00, 0x80}; // -32768
     EXPECT_EQ(readI16(data), -32768);
 }
 
-TEST_F(TestWavUtils, ReadI24_PositiveValue) {
+TEST_F(WavUtilsTest, ReadI24_PositiveValue) {
     uint8_t data[] = {0x00, 0x00, 0x40}; // 4194304
     EXPECT_EQ(readI24(data), 4194304);
 }
 
-TEST_F(TestWavUtils, ReadI24_NegativeValue) {
+TEST_F(WavUtilsTest, ReadI24_NegativeValue) {
     uint8_t data[] = {0x00, 0x00, 0x80}; // -8388608 (sign bit set)
     EXPECT_EQ(readI24(data), -8388608);
 }
 
-TEST_F(TestWavUtils, ReadI24_MaxPositive) {
+TEST_F(WavUtilsTest, ReadI24_MaxPositive) {
     uint8_t data[] = {0xFF, 0xFF, 0x7F}; // 8388607
     EXPECT_EQ(readI24(data), 8388607);
 }
@@ -241,7 +241,7 @@ TEST_F(TestWavUtils, ReadI24_MaxPositive) {
 // WAV Header Parsing Tests
 // ============================================================================
 
-TEST_F(TestWavUtils, ParseWavHeader_ValidPCM16) {
+TEST_F(WavUtilsTest, ParseWavHeader_ValidPCM16) {
     auto ss = createValidWavHeader(WAVE_FMT_PCM, 2, 44100, 16, 1000);
     WavFormat fmt;
     
@@ -253,7 +253,7 @@ TEST_F(TestWavUtils, ParseWavHeader_ValidPCM16) {
     EXPECT_EQ(fmt.dataSize, 1000);
 }
 
-TEST_F(TestWavUtils, ParseWavHeader_ValidPCM24) {
+TEST_F(WavUtilsTest, ParseWavHeader_ValidPCM24) {
     auto ss = createValidWavHeader(WAVE_FMT_PCM, 1, 48000, 24, 2400);
     WavFormat fmt;
     
@@ -262,7 +262,7 @@ TEST_F(TestWavUtils, ParseWavHeader_ValidPCM24) {
     EXPECT_EQ(fmt.bitsPerSample, 24);
 }
 
-TEST_F(TestWavUtils, ParseWavHeader_ValidFloat32) {
+TEST_F(WavUtilsTest, ParseWavHeader_ValidFloat32) {
     auto ss = createValidWavHeader(WAVE_FMT_FLOAT, 2, 96000, 32, 4000);
     WavFormat fmt;
     
@@ -271,7 +271,7 @@ TEST_F(TestWavUtils, ParseWavHeader_ValidFloat32) {
     EXPECT_EQ(fmt.bitsPerSample, 32);
 }
 
-TEST_F(TestWavUtils, ParseWavHeader_InvalidRIFF) {
+TEST_F(WavUtilsTest, ParseWavHeader_InvalidRIFF) {
     std::stringstream ss;
     ss.write("FAIL", 4);
     WavFormat fmt;
@@ -279,7 +279,7 @@ TEST_F(TestWavUtils, ParseWavHeader_InvalidRIFF) {
     EXPECT_EQ(parseWavHeader(ss, fmt), ERR_INVALID_HEADER);
 }
 
-TEST_F(TestWavUtils, ParseWavHeader_InvalidWAVE) {
+TEST_F(WavUtilsTest, ParseWavHeader_InvalidWAVE) {
     std::stringstream ss;
     ss.write("RIFF", 4);
     uint32_t size = 100;
@@ -290,7 +290,7 @@ TEST_F(TestWavUtils, ParseWavHeader_InvalidWAVE) {
     EXPECT_EQ(parseWavHeader(ss, fmt), ERR_INVALID_HEADER);
 }
 
-TEST_F(TestWavUtils, ParseWavHeader_MissingFmtChunk) {
+TEST_F(WavUtilsTest, ParseWavHeader_MissingFmtChunk) {
     std::stringstream ss;
     ss.write("RIFF", 4);
     uint32_t fileSize = 36;
@@ -304,28 +304,28 @@ TEST_F(TestWavUtils, ParseWavHeader_MissingFmtChunk) {
     EXPECT_EQ(parseWavHeader(ss, fmt), ERR_INVALID_HEADER);
 }
 
-TEST_F(TestWavUtils, ParseWavHeader_UnsupportedFormat) {
+TEST_F(WavUtilsTest, ParseWavHeader_UnsupportedFormat) {
     auto ss = createValidWavHeader(2, 2, 44100, 16, 1000); // Format 2 (unsupported)
     WavFormat fmt;
     
     EXPECT_EQ(parseWavHeader(ss, fmt), ERR_UNSUPPORTED_FORMAT);
 }
 
-TEST_F(TestWavUtils, ParseWavHeader_InvalidSampleRate) {
+TEST_F(WavUtilsTest, ParseWavHeader_InvalidSampleRate) {
     auto ss = createValidWavHeader(WAVE_FMT_PCM, 2, 0, 16, 1000); // 0 Hz
     WavFormat fmt;
     
     EXPECT_EQ(parseWavHeader(ss, fmt), ERR_INVALID_INPUT);
 }
 
-TEST_F(TestWavUtils, ParseWavHeader_TooHighSampleRate) {
+TEST_F(WavUtilsTest, ParseWavHeader_TooHighSampleRate) {
     auto ss = createValidWavHeader(WAVE_FMT_PCM, 2, 400000, 16, 1000); // > 384 kHz
     WavFormat fmt;
     
     EXPECT_EQ(parseWavHeader(ss, fmt), ERR_INVALID_INPUT);
 }
 
-TEST_F(TestWavUtils, ParseWavHeader_ZeroChannels) {
+TEST_F(WavUtilsTest, ParseWavHeader_ZeroChannels) {
     auto ss = createValidWavHeader(WAVE_FMT_PCM, 0, 44100, 16, 1000);
     WavFormat fmt;
     
@@ -336,7 +336,7 @@ TEST_F(TestWavUtils, ParseWavHeader_ZeroChannels) {
 // Sample Decoding Tests
 // ============================================================================
 
-TEST_F(TestWavUtils, DecodeSample_PCM16) {
+TEST_F(WavUtilsTest, DecodeSample_PCM16) {
     WavFormat fmt;
     fmt.format = WAVE_FMT_PCM;
     fmt.bitsPerSample = 16;
@@ -345,7 +345,7 @@ TEST_F(TestWavUtils, DecodeSample_PCM16) {
     EXPECT_DOUBLE_EQ(decodeSample(data, fmt), 16384.0);
 }
 
-TEST_F(TestWavUtils, DecodeSample_PCM24) {
+TEST_F(WavUtilsTest, DecodeSample_PCM24) {
     WavFormat fmt;
     fmt.format = WAVE_FMT_PCM;
     fmt.bitsPerSample = 24;
@@ -354,7 +354,7 @@ TEST_F(TestWavUtils, DecodeSample_PCM24) {
     EXPECT_DOUBLE_EQ(decodeSample(data, fmt), 4194304.0);
 }
 
-TEST_F(TestWavUtils, DecodeSample_Float32) {
+TEST_F(WavUtilsTest, DecodeSample_Float32) {
     WavFormat fmt;
     fmt.format = WAVE_FMT_FLOAT;
     fmt.bitsPerSample = 32;
@@ -364,7 +364,7 @@ TEST_F(TestWavUtils, DecodeSample_Float32) {
     EXPECT_DOUBLE_EQ(decodeSample(data, fmt), 0.5);
 }
 
-TEST_F(TestWavUtils, DecodeSampleMono_SingleChannel) {
+TEST_F(WavUtilsTest, DecodeSampleMono_SingleChannel) {
     WavFormat fmt;
     fmt.format = WAVE_FMT_PCM;
     fmt.bitsPerSample = 16;
@@ -374,7 +374,7 @@ TEST_F(TestWavUtils, DecodeSampleMono_SingleChannel) {
     EXPECT_DOUBLE_EQ(decodeSampleMono(raw, 0, fmt), 16384.0);
 }
 
-TEST_F(TestWavUtils, DecodeSampleMono_StereoMixed) {
+TEST_F(WavUtilsTest, DecodeSampleMono_StereoMixed) {
     WavFormat fmt;
     fmt.format = WAVE_FMT_PCM;
     fmt.bitsPerSample = 16;
@@ -385,7 +385,7 @@ TEST_F(TestWavUtils, DecodeSampleMono_StereoMixed) {
     EXPECT_DOUBLE_EQ(decodeSampleMono(raw, 0, fmt), 15000.0);
 }
 
-TEST_F(TestWavUtils, DecodeSampleChannel_Stereo) {
+TEST_F(WavUtilsTest, DecodeSampleChannel_Stereo) {
     WavFormat fmt;
     fmt.format = WAVE_FMT_PCM;
     fmt.bitsPerSample = 16;
@@ -401,13 +401,13 @@ TEST_F(TestWavUtils, DecodeSampleChannel_Stereo) {
 // Window Function Tests
 // ============================================================================
 
-TEST_F(TestWavUtils, WindowValue_Rectangular) {
+TEST_F(WavUtilsTest, WindowValue_Rectangular) {
     EXPECT_DOUBLE_EQ(windowValue(WindowType::Rectangular, 0, 10), 1.0);
     EXPECT_DOUBLE_EQ(windowValue(WindowType::Rectangular, 5, 10), 1.0);
     EXPECT_DOUBLE_EQ(windowValue(WindowType::Rectangular, 9, 10), 1.0);
 }
 
-TEST_F(TestWavUtils, WindowValue_Hann) {
+TEST_F(WavUtilsTest, WindowValue_Hann) {
     // Hann window: 0.5 * (1 - cos(2*pi*i/(N-1)))
     // Verified with reference: scipy.signal.windows.hann(10, sym=False)
     // [0.0, 0.11697778, 0.41317591, 0.75, 0.96984631, 0.96984631, 0.75, 0.41317591, 0.11697778, 0.0]
@@ -420,7 +420,7 @@ TEST_F(TestWavUtils, WindowValue_Hann) {
     EXPECT_NEAR(windowValue(WindowType::Hann, 9, 10), 0.0, 1e-8);
 }
 
-TEST_F(TestWavUtils, WindowValue_Hamming) {
+TEST_F(WavUtilsTest, WindowValue_Hamming) {
     // Hamming window: starts at 0.08, peaks near middle
     double val0 = windowValue(WindowType::Hamming, 0, 10);
     double val5 = windowValue(WindowType::Hamming, 5, 10);
@@ -428,7 +428,7 @@ TEST_F(TestWavUtils, WindowValue_Hamming) {
     EXPECT_GT(val5, val0);
 }
 
-TEST_F(TestWavUtils, WindowValue_Blackman) {
+TEST_F(WavUtilsTest, WindowValue_Blackman) {
     // Blackman window has specific formula
     double val0 = windowValue(WindowType::Blackman, 0, 10);
     double val5 = windowValue(WindowType::Blackman, 5, 10);
@@ -436,7 +436,7 @@ TEST_F(TestWavUtils, WindowValue_Blackman) {
     EXPECT_GT(val5, val0);
 }
 
-TEST_F(TestWavUtils, ParseWindow_CaseInsensitive) {
+TEST_F(WavUtilsTest, ParseWindow_CaseInsensitive) {
     EXPECT_EQ(parseWindow("hann"), WindowType::Hann);
     EXPECT_EQ(parseWindow("HANN"), WindowType::Hann);
     EXPECT_EQ(parseWindow("Hamming"), WindowType::Hamming);
@@ -444,12 +444,12 @@ TEST_F(TestWavUtils, ParseWindow_CaseInsensitive) {
     EXPECT_EQ(parseWindow("unknown"), WindowType::Rectangular);
 }
 
-TEST_F(TestWavUtils, GenerateWindowCoeffs_Size) {
+TEST_F(WavUtilsTest, GenerateWindowCoeffs_Size) {
     auto coeffs = generateWindowCoeffs(WindowType::Hann, 256);
     EXPECT_EQ(coeffs.size(), 256);
 }
 
-TEST_F(TestWavUtils, GenerateWindowCoeffs_Values) {
+TEST_F(WavUtilsTest, GenerateWindowCoeffs_Values) {
     auto coeffs = generateWindowCoeffs(WindowType::Hann, 10);
     // Verified with reference: scipy.signal.windows.hann(10, sym=False)
     EXPECT_NEAR(coeffs[0], 0.0, 1e-8);
@@ -463,7 +463,7 @@ TEST_F(TestWavUtils, GenerateWindowCoeffs_Values) {
 // CSV Writer Tests
 // ============================================================================
 
-TEST_F(TestWavUtils, CsvWriter_CreateFile) {
+TEST_F(WavUtilsTest, CsvWriter_CreateFile) {
     const std::string testFile = "test_output.csv";
     {
         CsvWriter writer(testFile);
@@ -486,11 +486,11 @@ TEST_F(TestWavUtils, CsvWriter_CreateFile) {
     std::remove(testFile.c_str());
 }
 
-TEST_F(TestWavUtils, CsvWriter_InvalidPath) {
+TEST_F(WavUtilsTest, CsvWriter_InvalidPath) {
     EXPECT_THROW(CsvWriter writer("/invalid/path/file.csv"), int);
 }
 
-TEST_F(TestWavUtils, CsvWriter_WriteLine) {
+TEST_F(WavUtilsTest, CsvWriter_WriteLine) {
     const std::string testFile = "test_line.csv";
     {
         CsvWriter writer(testFile);
@@ -505,7 +505,7 @@ TEST_F(TestWavUtils, CsvWriter_WriteLine) {
     std::remove(testFile.c_str());
 }
 
-TEST_F(TestWavUtils, CsvWriter_FlushInterval) {
+TEST_F(WavUtilsTest, CsvWriter_FlushInterval) {
     const std::string testFile = "test_flush.csv";
     {
         CsvWriter writer(testFile);
@@ -531,7 +531,7 @@ TEST_F(TestWavUtils, CsvWriter_FlushInterval) {
 // Integration Tests
 // ============================================================================
 
-TEST_F(TestWavUtils, Integration_ReadAndDecodeSamples) {
+TEST_F(WavUtilsTest, Integration_ReadAndDecodeSamples) {
     // Create a WAV with known sample values
     auto ss = createValidWavHeader(WAVE_FMT_PCM, 2, 44100, 16, 8);
     WavFormat fmt;

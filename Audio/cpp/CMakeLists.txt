@@ -247,6 +247,25 @@ add_test(NAME test_wav_utils COMMAND test_wav_utils)
 set_tests_properties(test_wav_utils PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 # ------------------------
+# Unit test for Live Audio Denoise
+# ------------------------
+add_executable(test_live_audio_denoise 
+    tests/test_live_audio_denoise.cpp
+    src/wav_writer.cpp
+)
+target_link_libraries(test_live_audio_denoise 
+    PRIVATE 
+    GTest::GTest 
+    GTest::Main 
+    pthread
+    ${MATH_LIB}
+    ${PORTAUDIO_LIBRARY_FOUND} 
+    ${RNNOISE_LIB}
+)
+add_test(NAME test_live_audio_denoise COMMAND test_live_audio_denoise)
+set_tests_properties(test_live_audio_denoise PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+
+# ------------------------
 # Summary messages
 # ------------------------
 message(STATUS "Configured AudioTools project.")

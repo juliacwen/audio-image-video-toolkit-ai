@@ -394,3 +394,12 @@ void WavWriter::writeFrame(const int32_t* frame, size_t frameLength) {
         writeSample(frame[ch]);
     }
 }
+
+void WavWriter::close() {
+    if (file_.is_open()) {
+        if (!finalized_) {
+            finalize();  // updates header sizes
+        }
+        file_.close();
+    }
+}

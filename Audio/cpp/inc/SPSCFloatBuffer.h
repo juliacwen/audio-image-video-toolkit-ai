@@ -3,7 +3,6 @@
  *
  * Lock-free Single-Producer Single-Consumer ring buffer optimized for real-time audio.
  * Author: Julia Wen (wendigilane@gmail.com)
- * Date: 11-20-2025
  * OVERVIEW:
  *   This is a wait-free, thread-safe circular buffer designed for scenarios where exactly
  *   one thread produces data and exactly one thread consumes data. It's ideal for audio
@@ -59,7 +58,10 @@
  * COMPILER REQUIREMENTS:
  *   - C++17 or later
  *   - Compiler with std::atomic support (GCC 4.8+, Clang 3.1+, MSVC 2015+)
+ * @par Revision History
+ * - 11-20-2025 — Initial check-in  
  */
+ 
 
 #pragma once
 #include <atomic>

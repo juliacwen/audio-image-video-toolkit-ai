@@ -1,6 +1,6 @@
 /**
  * @file test_wav_writer.cpp
- * @brief unit tests (gtest)for WavWriter class
+ * @brief Unit tests (gtest) for WavWriter class
  * @author Julia Wen (wendigilane@gmail.com)
  * @date 12-02-2025
  */
@@ -16,7 +16,7 @@
 // Helper class to read and validate WAV files
 class WavReader {
 public:
-    WavReader(const std::string& filename) {
+    explicit WavReader(const std::string& filename) {
         file_.open(filename, std::ios::binary);
         if (!file_.is_open()) {
             throw std::runtime_error("Failed to open WAV file for reading");
@@ -109,7 +109,10 @@ private:
     uint32_t dataSize_;
 };
 
-// Test fixture
+// ============================================================================
+// Google Test Fixture
+// ============================================================================
+
 class WavWriterTest : public ::testing::Test {
 protected:
     const std::string testFile_ = "test_output.wav";
@@ -118,7 +121,7 @@ protected:
         std::remove(testFile_.c_str());
     }
 
-    bool fileExists(const std::string& filename) {
+    bool fileExists(const std::string& filename) const {
         std::ifstream f(filename);
         return f.good();
     }
@@ -233,7 +236,7 @@ TEST_F(WavWriterTest, Write16BitMaxMin) {
 }
 
 // ============================================================================
-// 24-bit Sample Writing Tests (THE CRITICAL ONES!)
+// 24-bit Sample Writing Tests
 // ============================================================================
 
 TEST_F(WavWriterTest, Write16BitTo24BitConversion) {
