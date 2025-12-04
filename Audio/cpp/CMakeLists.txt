@@ -231,12 +231,12 @@ add_test(NAME test_wav_to_csv COMMAND test_wav_to_csv)
 set_tests_properties(test_wav_to_csv PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 # ------------------------
-# Unit test for WavWriter utility class
+# Unit test for FFT utils
 # ------------------------
-add_executable(test_wav_writer tests/test_wav_writer.cpp src/wav_writer.cpp)
-target_link_libraries(test_wav_writer PRIVATE GTest::GTest GTest::Main pthread)
-add_test(NAME test_wav_writer COMMAND test_wav_writer)
-set_tests_properties(test_wav_writer PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+add_executable(test_fft_utils tests/test_fft_utils.cpp src/fft_utils.cpp)
+target_link_libraries(test_fft_utils PRIVATE GTest::GTest GTest::Main pthread)
+add_test(NAME test_fft_utils COMMAND test_wav_utils)
+set_tests_properties(test_fft_utils PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
 # ------------------------
 # Unit test for Wav utils
@@ -245,6 +245,16 @@ add_executable(test_wav_utils tests/test_wav_utils.cpp src/wav_utils.cpp)
 target_link_libraries(test_wav_utils PRIVATE GTest::GTest GTest::Main pthread)
 add_test(NAME test_wav_utils COMMAND test_wav_utils)
 set_tests_properties(test_wav_utils PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+
+# ------------------------
+# Unit test for WavWriter utility class
+# ------------------------
+add_executable(test_wav_writer tests/test_wav_writer.cpp src/wav_writer.cpp)
+target_link_libraries(test_wav_writer PRIVATE GTest::GTest GTest::Main pthread)
+add_test(NAME test_wav_writer COMMAND test_wav_writer)
+set_tests_properties(test_wav_writer PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+
+
 
 # ------------------------
 # Unit test for Live Audio Denoise
