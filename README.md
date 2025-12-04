@@ -2,11 +2,11 @@
 **Author:** Julia Wen (wendigilane@gmail.com)  
 **License:** MIT
 
-This repository contains AI/ML pipelines, tools, and demos for **Audio**, **Image**, **Video**, and **cross-modal multimodal AI applications**. It includes **C++ and Python source code**, **TypeScript and JavaScript React demos** (under `Image/typescript/web` and `Image/javascript/web`), **Streamlit apps**, **database integration**, and **tests** (Pytest / GoogleTest). Each domain provides end-to-end workflows, training/prediction scripts, and interactive demos for research and experimentation. 
+This repository contains AI/ML pipelines, tools, and demos for **Audio**, **Image**, **Video**, and **cross-modal multimodal AI applications**. It includes **C++ and Python source code**, **TypeScript and JavaScript React demos** (under `Image/typescript/web` and `Image/javascript/web`), **Streamlit apps**, **database integration**, and **tests** (GoogleTest / Pytest). Each domain provides end-to-end workflows, training/prediction scripts, and interactive demos for research and experimentation. 
 
 ## Project Overview
-- **Audio:** WAV → CSV, FFT spectra (multiple window types), MLP/NN/RNN models, optional LLM explanations, **2D Conv GAN denoising**.
-- **Image:** Crescent detection (HOG+SVM, CNN, Vision Transformer), PyTorch/TensorFlow implementations, **dataset generation**, **interactive Streamlit apps**, TypeScript and JavaScript React demos under `Image/typescript/web` and `Image/javascript/web`.
+- **Audio:** WAV → CSV, FFT spectra (multiple window types), MLP/NN/RNN models, optional LLM explanations, **live audio denoise with PortAudio and rnnoise**, **2D Conv GAN denoising**.
+- **Image:** Crescent detection (HOG+SVM, CNN, Vision Transformer), PyTorch/TensorFlow implementations, dataset generation, **interactive Streamlit apps**, **TypeScript and JavaScript React demos** under `Image/typescript/web` and `Image/javascript/web`.
 - **Video:** Motion estimation, frame prediction, stereo disparity, optical flow, trajectory analysis, MiDaS-based depth estimation.
 - **Multimodal / Cross-Modal AI:** Graph-based reasoning, LLM explanations, interactive demos, Bayesian apps, and database support.
 
@@ -15,11 +15,14 @@ This repository contains AI/ML pipelines, tools, and demos for **Audio**, **Imag
 Audio/
   cpp/
     src/
+    inc/
     tests/
+    CMakeLists.txt
   python/
     src/
     tests/
       ai_tools/
+    bayesian/
 Image/
   python/
     src/
@@ -46,10 +49,14 @@ Multimodal/
 
 ## Audio Processing
 ### C++ Components
-- `Audio/cpp/src/wav_to_csv.cpp` — WAV → CSV (16-bit, 24-bit, Float32)
-- `Audio/cpp/src/wav_freq_csv.cpp` — WAV → CSV and FFT Spectrum CSV, supports multiple FFT windows
-- `Audio/cpp/src/wav_freq_csv_channelized.cpp` — Channelized FFT spectra extraction
-- Audio/cpp/tests: GoogleTest `test_wav_to_csv.cpp`, `test_wav_freq_csv.cpp`, `test_wav_freq_csv_multi_channel.cpp`
+- `fft_utils.cpp` — FFT window functions, buffer prep, magnitude and dB helpers.
+- `live_audio_denoise.cpp` — Live audio denoising pipeline with PortAudio and rnnoise.
+- `wav_freq_csv.cpp` — WAV → CSV and FFT Spectrum CSV, supports multiple FFT windows
+- `wav_freq_csv_channelized.cpp` — Multi-channel WAV → CSV + FFT spectrum.
+- `wav_to_csv.cpp` — WAV → CSV converter (16-bit, 24-bit, Float32)
+- `wav_utils.cpp` — WAV header parsing, sample conversion, endian helpers.
+- `wav_writer.cpp` — WAV writing routines for PCM16/24/Float32 with safe I/O.
+- Audio/cpp/tests: GoogleTest files for the source above
 
 ### Python Components
 - CSV comparison: `compare_csv.py`, `comparetorch_csv.py`
@@ -131,7 +138,7 @@ pip install -r requirements.txt
 ## Dependencies by Module
 | Module | Domain | Libraries / Tools |
 |--------|--------|-----------------|
-| Audio C++ | Audio | g++, FFT, WAV parsing |
+| Audio C++ | Audio | g++, FFT library, WAV parsing, PortAudio, rnnoise |
 | Audio Python | Audio | NumPy, SciPy, Matplotlib, PyTorch, scikit-learn, SoundFile, pandas, openpyxl, python-dotenv |
 | Image Python | Image | OpenCV, NumPy, scikit-learn, Matplotlib, joblib, tf.keras, PyTorch |
 | Image TypeScript | Image | Node.js, TypeScript, React, Vite |
@@ -146,8 +153,17 @@ pip install -r requirements.txt
 - Multimodal folder connects multiple domains, supports database integration.
 - Streamlit apps provide GUI for training, prediction, and output saving.
 - TypeScript and JavaScript React demos provide web-based interactive visualization.
+- Bayesian tools are modular and integrate with a SQLite database for storing FFT results.
+- Live audio denoising requires correct setup of PortAudio and rnnoise libraries.
 
 ## Commit / Changelog Highlights
+- 2025-12-03 — Added/Updated audio google test files 
+- 2025-12-02 — Added bypass to live_audio_denoise
+- 2025-12-01 — Updated video processing related c++ files
+- 2025-11-25 — Audio live denoise with SPSC and denormal control
+- 2025-11-24 — Audio add live denoise with PortAudio and rnnoise
+- 2025-11-23 — Audio refactor with common utils
+- 2025-11-20 — Added CMakeList for Audio
 - 2025-11-18 — Image/javascript javascript React demos for crescent detection
 - 2025-11-13 — Added add channelized wav freq to csv
 - 2025-11-11 — Python and Matlab analogy examples
