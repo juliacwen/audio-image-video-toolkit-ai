@@ -5,6 +5,7 @@
  * @par Revision History
  * - 11-21-2025 — Initial check-in  
  * - 12-02-2025 — Update with improvement
+ * - 12-04-2025 — Added 3-column writeRow for spectrogram support
  */
 
 #include "../inc/wav_utils.h"
@@ -319,10 +320,22 @@ void CsvWriter::writeRow(T1 col1, T2 col2) {
     }
 }
 
+template<typename T1, typename T2, typename T3>
+void CsvWriter::writeRow(T1 col1, T2 col2, T3 col3) {
+    file_ << col1 << "," << col2 << "," << col3 << "\n";
+    if (++lineCount_ >= FLUSH_INTERVAL) {
+        file_.flush();
+        lineCount_ = 0;
+    }
+}
+
 // Explicit template instantiations for common types
 template void CsvWriter::writeRow<size_t, double>(size_t, double);
 template void CsvWriter::writeRow<double, double>(double, double);
 template void CsvWriter::writeRow<int, double>(int, double);
+
+// 3-column instantiations for spectrogram support
+template void CsvWriter::writeRow<double, double, double>(double, double, double);
 
 void CsvWriter::flush() {
     file_.flush();

@@ -5,6 +5,7 @@
  * @par Revision History
  * - 11-21-2025 — Initial check-in  
  * - 12-02-2025 — Update with improvement
+ * - 12-04-2025 — Added 3-column writeRow for spectrogram support
  */
 
 #ifndef WAV_UTILS_H
@@ -115,6 +116,9 @@ public:
     
     template<typename T1, typename T2>
     void writeRow(T1 col1, T2 col2);
+    
+    template<typename T1, typename T2, typename T3>
+    void writeRow(T1 col1, T2 col2, T3 col3);
     
     void flush();
     void close();
