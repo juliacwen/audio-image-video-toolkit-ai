@@ -45,6 +45,7 @@ Multimodal/
   graphs/
   llm/
   db/
+python_matlab_analogy/
 ```
 
 ## Audio Processing
@@ -118,6 +119,7 @@ python video_depth_midas.py --video path/to/video.mp4
 
 ## python_matlab_analogy
  - Python Matlab analogy examples
+
 ## Setup
 1. Clone the repository
 ```bash
@@ -146,6 +148,7 @@ pip install -r requirements.txt
 | Video C++ | Video | g++, OpenCV |
 | Video Python | Video | OpenCV, PyTorch, timm, NumPy, Matplotlib |
 | Multimodal / AI | Cross-Modal | NetworkX, PyTorch, Streamlit, OpenAI Python SDK, SQLite / other DB |
+| Python Matlab Analog | Streamlit, NumPy, Matplotlib, Dash, librosa |
 
 ## Notes
 - Some parts were developed with AI assistance; core algorithms implemented and verified manually.
