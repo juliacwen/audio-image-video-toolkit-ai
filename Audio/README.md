@@ -45,11 +45,11 @@ Audio/
 
 - **Sources (`Audio/cpp/src/`)**
   - `fft_utils.cpp` — Implements window functions and FFT helpers.
-  - `live_audio_denoise.cpp` — Live audio denoising pipeline.
+  - `live_audio_denoise.cpp` — Live audio denoising pipeline with PortAudio and rnnoise.
   - `wav_comp_diff.cpp` — Compare WAVs or WAV CSVs and output differences.
   - `wav_freq_csv.cpp` — WAV → CSV + FFT spectrum.
   - `wav_freq_csv_channelized.cpp` — Multi-channel WAV → CSV + FFT spectrum.
-  - `wav_to_csv.cpp` — WAV → CSV converter.
+  - `wav_to_csv.cpp` — WAV → CSV converter (16-bit, 24-bit, Float32).
   - `wav_utils.cpp` — Implements WAV reading and sample conversion.
   - `wav_writer.cpp` — Implements WAV writing routines.
 
