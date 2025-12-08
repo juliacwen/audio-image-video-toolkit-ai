@@ -5,6 +5,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ------------------------
+# Build Profile Selection
+# ------------------------
+set(BUILD_PROFILE "DESKTOP" CACHE STRING "Build profile: DESKTOP, WEARABLE, or EMBEDDED")
+set_property(CACHE BUILD_PROFILE PROPERTY STRINGS DESKTOP WEARABLE EMBEDDED)
+message(STATUS "Build profile: ${BUILD_PROFILE}")
+
+# ------------------------
 # Compiler warnings
 # ------------------------
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -153,19 +160,68 @@ add_library(fft_utils STATIC
 target_include_directories(fft_utils PUBLIC ${PROJECT_SOURCE_DIR}/inc ${PROJECT_SOURCE_DIR}/src)
 
 # ------------------------
-# Executables
+# Live Audio Denoise Executables (Multiple Profiles)
 # ------------------------
-# live_audio_denoise uses wav_writer.cpp (utility) and PortAudio + RNNoise
-add_executable(live_audio_denoise
+# Common source files
+set(DENOISE_SOURCES
   src/live_audio_denoise.cpp
   src/wav_writer.cpp
 )
-target_include_directories(live_audio_denoise PRIVATE ${PORTAUDIO_INCLUDE_DIR_FOUND})
-target_link_libraries(live_audio_denoise PRIVATE ${PORTAUDIO_LIBRARY_FOUND} ${MATH_LIB})
+
+# Desktop build (full features)
+add_executable(live_audio_denoise_desktop ${DENOISE_SOURCES})
+target_compile_definitions(live_audio_denoise_desktop PRIVATE BUILD_DESKTOP)
+target_include_directories(live_audio_denoise_desktop PRIVATE ${PORTAUDIO_INCLUDE_DIR_FOUND})
+target_link_libraries(live_audio_denoise_desktop PRIVATE 
+  ${PORTAUDIO_LIBRARY_FOUND} 
+  ${MATH_LIB}
+  Threads::Threads
+)
 if(RNNOISE_LIB)
-  target_link_libraries(live_audio_denoise PRIVATE ${RNNOISE_LIB})
+  target_link_libraries(live_audio_denoise_desktop PRIVATE ${RNNOISE_LIB})
 endif()
 
+# Wearable build (power optimized)
+add_executable(live_audio_denoise_wearable ${DENOISE_SOURCES})
+target_compile_definitions(live_audio_denoise_wearable PRIVATE BUILD_WEARABLE)
+target_include_directories(live_audio_denoise_wearable PRIVATE ${PORTAUDIO_INCLUDE_DIR_FOUND})
+target_link_libraries(live_audio_denoise_wearable PRIVATE 
+  ${PORTAUDIO_LIBRARY_FOUND} 
+  ${MATH_LIB}
+  Threads::Threads
+)
+if(RNNOISE_LIB)
+  target_link_libraries(live_audio_denoise_wearable PRIVATE ${RNNOISE_LIB})
+endif()
+
+# Embedded build (minimal resources)
+add_executable(live_audio_denoise_embedded ${DENOISE_SOURCES})
+target_compile_definitions(live_audio_denoise_embedded PRIVATE BUILD_EMBEDDED)
+target_include_directories(live_audio_denoise_embedded PRIVATE ${PORTAUDIO_INCLUDE_DIR_FOUND})
+target_link_libraries(live_audio_denoise_embedded PRIVATE 
+  ${PORTAUDIO_LIBRARY_FOUND} 
+  ${MATH_LIB}
+  Threads::Threads
+)
+if(RNNOISE_LIB)
+  target_link_libraries(live_audio_denoise_embedded PRIVATE ${RNNOISE_LIB})
+endif()
+
+# Create a default alias based on BUILD_PROFILE
+if(BUILD_PROFILE STREQUAL "WEARABLE")
+  add_custom_target(live_audio_denoise ALL DEPENDS live_audio_denoise_wearable)
+  message(STATUS "Default target 'live_audio_denoise' -> wearable profile")
+elseif(BUILD_PROFILE STREQUAL "EMBEDDED")
+  add_custom_target(live_audio_denoise ALL DEPENDS live_audio_denoise_embedded)
+  message(STATUS "Default target 'live_audio_denoise' -> embedded profile")
+else()
+  add_custom_target(live_audio_denoise ALL DEPENDS live_audio_denoise_desktop)
+  message(STATUS "Default target 'live_audio_denoise' -> desktop profile")
+endif()
+
+# ------------------------
+# Other Executables
+# ------------------------
 # wav_to_csv - simple WAV to CSV converter
 add_executable(wav_to_csv src/wav_to_csv.cpp)
 target_link_libraries(wav_to_csv PRIVATE wav_utils)
@@ -206,78 +262,116 @@ else()
     set(GTest_FOUND TRUE)
     message(STATUS "Created imported GTest targets from Homebrew locations")
   else()
-    message(FATAL_ERROR "GoogleTest not found. Install GTest or make it discoverable to CMake.")
+    message(WARNING "GoogleTest not found. Tests will be skipped.")
+    set(SKIP_TESTS TRUE)
   endif()
 endif()
 
-enable_testing()
+if(NOT SKIP_TESTS)
+  enable_testing()
 
-# ------------------------
-# Test executables (they call the utility exes)
-# ------------------------
-add_executable(test_wav_freq_csv tests/test_wav_freq_csv.cpp)
-target_link_libraries(test_wav_freq_csv PRIVATE GTest::GTest GTest::Main pthread)
-add_test(NAME test_wav_freq_csv COMMAND test_wav_freq_csv)
-set_tests_properties(test_wav_freq_csv PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+  # ------------------------
+  # Test executables (they call the utility exes)
+  # ------------------------
+  add_executable(test_wav_freq_csv tests/test_wav_freq_csv.cpp)
+  target_link_libraries(test_wav_freq_csv PRIVATE GTest::GTest GTest::Main Threads::Threads)
+  add_test(NAME test_wav_freq_csv COMMAND test_wav_freq_csv)
+  set_tests_properties(test_wav_freq_csv PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
-add_executable(test_wav_freq_csv_multi_channel tests/test_wav_freq_csv_multi_channel.cpp)
-target_link_libraries(test_wav_freq_csv_multi_channel PRIVATE GTest::GTest GTest::Main pthread)
-add_test(NAME test_wav_freq_csv_multi_channel COMMAND test_wav_freq_csv_multi_channel)
-set_tests_properties(test_wav_freq_csv_multi_channel PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+  add_executable(test_wav_freq_csv_multi_channel tests/test_wav_freq_csv_multi_channel.cpp)
+  target_link_libraries(test_wav_freq_csv_multi_channel PRIVATE GTest::GTest GTest::Main Threads::Threads)
+  add_test(NAME test_wav_freq_csv_multi_channel COMMAND test_wav_freq_csv_multi_channel)
+  set_tests_properties(test_wav_freq_csv_multi_channel PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
-add_executable(test_wav_to_csv tests/test_wav_to_csv.cpp)
-target_link_libraries(test_wav_to_csv PRIVATE GTest::GTest GTest::Main pthread)
-add_test(NAME test_wav_to_csv COMMAND test_wav_to_csv)
-set_tests_properties(test_wav_to_csv PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+  add_executable(test_wav_to_csv tests/test_wav_to_csv.cpp)
+  target_link_libraries(test_wav_to_csv PRIVATE GTest::GTest GTest::Main Threads::Threads)
+  add_test(NAME test_wav_to_csv COMMAND test_wav_to_csv)
+  set_tests_properties(test_wav_to_csv PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
-# ------------------------
-# Unit test for FFT utils
-# ------------------------
-add_executable(test_fft_utils tests/test_fft_utils.cpp src/fft_utils.cpp)
-target_link_libraries(test_fft_utils PRIVATE GTest::GTest GTest::Main pthread)
-add_test(NAME test_fft_utils COMMAND test_wav_utils)
-set_tests_properties(test_fft_utils PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+  # ------------------------
+  # Unit test for FFT utils
+  # ------------------------
+  add_executable(test_fft_utils tests/test_fft_utils.cpp src/fft_utils.cpp)
+  target_link_libraries(test_fft_utils PRIVATE GTest::GTest GTest::Main Threads::Threads)
+  add_test(NAME test_fft_utils COMMAND test_fft_utils)
+  set_tests_properties(test_fft_utils PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
-# ------------------------
-# Unit test for Wav utils
-# ------------------------
-add_executable(test_wav_utils tests/test_wav_utils.cpp src/wav_utils.cpp)
-target_link_libraries(test_wav_utils PRIVATE GTest::GTest GTest::Main pthread)
-add_test(NAME test_wav_utils COMMAND test_wav_utils)
-set_tests_properties(test_wav_utils PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+  # ------------------------
+  # Unit test for Wav utils
+  # ------------------------
+  add_executable(test_wav_utils tests/test_wav_utils.cpp src/wav_utils.cpp)
+  target_link_libraries(test_wav_utils PRIVATE GTest::GTest GTest::Main Threads::Threads)
+  add_test(NAME test_wav_utils COMMAND test_wav_utils)
+  set_tests_properties(test_wav_utils PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
-# ------------------------
-# Unit test for WavWriter utility class
-# ------------------------
-add_executable(test_wav_writer tests/test_wav_writer.cpp src/wav_writer.cpp)
-target_link_libraries(test_wav_writer PRIVATE GTest::GTest GTest::Main pthread)
-add_test(NAME test_wav_writer COMMAND test_wav_writer)
-set_tests_properties(test_wav_writer PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+  # ------------------------
+  # Unit test for WavWriter utility class
+  # ------------------------
+  add_executable(test_wav_writer tests/test_wav_writer.cpp src/wav_writer.cpp)
+  target_link_libraries(test_wav_writer PRIVATE GTest::GTest GTest::Main Threads::Threads)
+  add_test(NAME test_wav_writer COMMAND test_wav_writer)
+  set_tests_properties(test_wav_writer PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
+  # ------------------------
+  # Unit test for Live Audio Denoise (tests desktop build)
+  # ------------------------
+  add_executable(test_live_audio_denoise 
+      tests/test_live_audio_denoise.cpp
+      src/wav_writer.cpp
+  )
+  target_compile_definitions(test_live_audio_denoise PRIVATE BUILD_DESKTOP)
+  target_link_libraries(test_live_audio_denoise 
+      PRIVATE 
+      GTest::GTest 
+      GTest::Main 
+      Threads::Threads
+      ${MATH_LIB}
+      ${PORTAUDIO_LIBRARY_FOUND} 
+      ${RNNOISE_LIB}
+  )
+  add_test(NAME test_live_audio_denoise COMMAND test_live_audio_denoise)
+  set_tests_properties(test_live_audio_denoise PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
-
-# ------------------------
-# Unit test for Live Audio Denoise
-# ------------------------
-add_executable(test_live_audio_denoise 
-    tests/test_live_audio_denoise.cpp
-    src/wav_writer.cpp
-)
-target_link_libraries(test_live_audio_denoise 
-    PRIVATE 
-    GTest::GTest 
-    GTest::Main 
-    pthread
-    ${MATH_LIB}
-    ${PORTAUDIO_LIBRARY_FOUND} 
-    ${RNNOISE_LIB}
-)
-add_test(NAME test_live_audio_denoise COMMAND test_live_audio_denoise)
-set_tests_properties(test_live_audio_denoise PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+  # ------------------------
+  # Unit test for Wearable Profile
+  # ------------------------
+  add_executable(test_live_audio_denoise_wearable 
+      tests/test_live_audio_denoise.cpp
+      src/wav_writer.cpp
+  )
+  target_compile_definitions(test_live_audio_denoise_wearable PRIVATE BUILD_WEARABLE)
+  target_link_libraries(test_live_audio_denoise_wearable 
+      PRIVATE 
+      GTest::GTest 
+      GTest::Main 
+      Threads::Threads
+      ${MATH_LIB}
+      ${PORTAUDIO_LIBRARY_FOUND} 
+      ${RNNOISE_LIB}
+  )
+  add_test(NAME test_live_audio_denoise_wearable COMMAND test_live_audio_denoise_wearable)
+  set_tests_properties(test_live_audio_denoise_wearable PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+endif()
 
 # ------------------------
 # Summary messages
 # ------------------------
-message(STATUS "Configured AudioTools project.")
+message(STATUS "")
+message(STATUS "=== AudioTools Build Configuration ===")
+message(STATUS "Build profile: ${BUILD_PROFILE}")
 message(STATUS "Utility libraries: wav_utils, fft_utils")
-message(STATUS "Targets: live_audio_denoise, wav_freq_csv, wav_freq_csv_channelized, wav_to_csv, and tests.")
+message(STATUS "")
+message(STATUS "Live audio denoise targets:")
+message(STATUS "  - live_audio_denoise_desktop  (16ch, 1s buffer, full features)")
+message(STATUS "  - live_audio_denoise_wearable (2ch, 200ms buffer, VAD, low power)")
+message(STATUS "  - live_audio_denoise_embedded (1ch, 16kHz, minimal resources)")
+message(STATUS "  - live_audio_denoise (alias to ${BUILD_PROFILE} profile)")
+message(STATUS "")
+message(STATUS "Other targets: wav_freq_csv, wav_freq_csv_channelized, wav_to_csv")
+if(NOT SKIP_TESTS)
+  message(STATUS "Tests: enabled")
+else()
+  message(STATUS "Tests: skipped (GTest not found)")
+endif()
+message(STATUS "======================================")
+message(STATUS "")
