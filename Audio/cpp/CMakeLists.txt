@@ -207,6 +207,54 @@ if(RNNOISE_LIB)
   target_link_libraries(live_audio_denoise_embedded PRIVATE ${RNNOISE_LIB})
 endif()
 
+# ------------------------
+# Live Audio Denoise Network Executables (Multiple Profiles)
+# ------------------------
+# Network version source files
+set(DENOISE_NETWORK_SOURCES
+  src/live_audio_denoise_network.cpp
+  src/wav_writer.cpp
+)
+
+# Desktop network build
+add_executable(live_audio_denoise_network_desktop ${DENOISE_NETWORK_SOURCES})
+target_compile_definitions(live_audio_denoise_network_desktop PRIVATE BUILD_DESKTOP)
+target_include_directories(live_audio_denoise_network_desktop PRIVATE ${PORTAUDIO_INCLUDE_DIR_FOUND})
+target_link_libraries(live_audio_denoise_network_desktop PRIVATE 
+  ${PORTAUDIO_LIBRARY_FOUND} 
+  ${MATH_LIB}
+  Threads::Threads
+)
+if(RNNOISE_LIB)
+  target_link_libraries(live_audio_denoise_network_desktop PRIVATE ${RNNOISE_LIB})
+endif()
+
+# Wearable network build
+add_executable(live_audio_denoise_network_wearable ${DENOISE_NETWORK_SOURCES})
+target_compile_definitions(live_audio_denoise_network_wearable PRIVATE BUILD_WEARABLE)
+target_include_directories(live_audio_denoise_network_wearable PRIVATE ${PORTAUDIO_INCLUDE_DIR_FOUND})
+target_link_libraries(live_audio_denoise_network_wearable PRIVATE 
+  ${PORTAUDIO_LIBRARY_FOUND} 
+  ${MATH_LIB}
+  Threads::Threads
+)
+if(RNNOISE_LIB)
+  target_link_libraries(live_audio_denoise_network_wearable PRIVATE ${RNNOISE_LIB})
+endif()
+
+# Embedded network build
+add_executable(live_audio_denoise_network_embedded ${DENOISE_NETWORK_SOURCES})
+target_compile_definitions(live_audio_denoise_network_embedded PRIVATE BUILD_EMBEDDED)
+target_include_directories(live_audio_denoise_network_embedded PRIVATE ${PORTAUDIO_INCLUDE_DIR_FOUND})
+target_link_libraries(live_audio_denoise_network_embedded PRIVATE 
+  ${PORTAUDIO_LIBRARY_FOUND} 
+  ${MATH_LIB}
+  Threads::Threads
+)
+if(RNNOISE_LIB)
+  target_link_libraries(live_audio_denoise_network_embedded PRIVATE ${RNNOISE_LIB})
+endif()
+
 # Create a default alias based on BUILD_PROFILE
 if(BUILD_PROFILE STREQUAL "WEARABLE")
   add_custom_target(live_audio_denoise ALL DEPENDS live_audio_denoise_wearable)
@@ -366,6 +414,11 @@ message(STATUS "  - live_audio_denoise_desktop  (16ch, 1s buffer, full features)
 message(STATUS "  - live_audio_denoise_wearable (2ch, 200ms buffer, VAD, low power)")
 message(STATUS "  - live_audio_denoise_embedded (1ch, 16kHz, minimal resources)")
 message(STATUS "  - live_audio_denoise (alias to ${BUILD_PROFILE} profile)")
+message(STATUS "")
+message(STATUS "Live audio denoise network targets:")
+message(STATUS "  - live_audio_denoise_network_desktop")
+message(STATUS "  - live_audio_denoise_network_wearable")
+message(STATUS "  - live_audio_denoise_network_embedded")
 message(STATUS "")
 message(STATUS "Other targets: wav_freq_csv, wav_freq_csv_channelized, wav_to_csv")
 if(NOT SKIP_TESTS)

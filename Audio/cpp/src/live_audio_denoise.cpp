@@ -6,27 +6,15 @@
  * OVERVIEW:
  * Real-time audio denoising system using PortAudio and RNNoise with support for multiple
  * build profiles. Features lock-free ring buffering and voice activity detection.
- * 
- * SYSTEM ARCHITECTURE:
- *   Microphone → PortAudio Input Callback → Input SPSC ring Buffer
- *                                              ↓
- *                                         Processing Thread:
- *                                         • Denormal Protection
- *                                         • Voice Activity Detection
- *                                         • RNNoise Processing (per-channel)
- *                                         • Denormal Clamping
- *                                              ↓
- *   Speaker ← PortAudio Output Callback ← Output SPSC ring Buffer
- * 
+
  * Features:
  *  - Real-time audio input/output using PortAudio
  *  - Multi-channel support (1-16 channels depending on profile)
- *  - Lock-free Single-Producer Single-Consumer (SPSC) ring buffers
- *    for real-time safe audio streaming
+ *  - Lock-free Single-Producer Single-Consumer (SPSC) ring buffers for real-time safe audio streaming
  *  - Frame-based processing with RNNoise for denoising
  *  - Voice Activity Detection (VAD) for power saving
  *  - Profile-based optimization (Desktop/Wearable/Embedded)
- *  - Optional WAV recording (can be disabled for battery saving)
+ *  - Optional WAV recording for debugging purpose
  *  - RMS logging with periodic console output
  * 
  * BUILD PROFILES:
@@ -64,41 +52,7 @@
  * NOTE: RNNoise requires 48kHz sample rate. All profiles use 48kHz due to this. 
  * Using any other sample rate will produce poor quality or fail.
  * 
- * Thread Safety:
- *  - PortAudio callback is the producer, pushing audio into the input buffer
- *  - Processing thread is the consumer, reading from input buffer and writing
- *    to output buffer
- *  - Both ring buffers are lock-free SPSC queues to avoid blocking in the audio callback
- *  - `keepRunning` is an atomic flag for clean shutdown on Ctrl+C (SIGINT)
- * 
- * Real-Time Considerations:
- *  - No mutexes or blocking operations are used in the audio callback
- *  - All disk I/O (WAV writing, logging) is done in the processing thread
- *  - Ensures low-latency, glitch-free audio streaming
- * 
- * Denormal Handling:
- *  - Very small floating-point values (< ~1.175e-38 for float) are called denormals or subnormals
- *    which can cause severe CPU slowdown in DSP/audio code
- *  - DAZ (Denormals-Are-Zero) treats incoming denormal numbers as zero
- *  - FTZ (Flush-To-Zero) sets tiny results of calculations to zero
- *  - Enabling FTZ + DAZ prevents performance issues from denormals while preserving normal audio behavior
- *  - Implemented via `denormal_control::disableDenormals()` or RAII `denormal_control::AutoDisable`
- *  - Optional software guard `denormal_control::guardDenormal(value, guard)` clamps extremely small values
- *  - Additional output clamping to zero for values in range (-1e-30, 1e-30)
- * 
- * Voice Activity Detection (VAD):
- *  - Exponentially smoothed RMS compared to threshold (default 0.001)
- *  - Hangover counter prevents choppy audio on brief pauses (200ms)
- *  - When inactive, audio passes through unprocessed (saves CPU/power)
- *  - Available in Wearable and Embedded profiles by default
- * 
- * Low Power Mode:
- *  - Disables WAV file recording completely (saves disk I/O and battery)
- *  - Reduces logging frequency (via LOG_EVERY_N_FRAMES in config)
- *  - Live audio processing continues normally
- *  - Use --wav flag to enable recording for debugging on wearable/embedded
- * 
- *  * Dependencies:
+ * Dependencies:
  *  - PortAudio (https://www.portaudio.com/)
  *  - RNNoise library (https://github.com/xiph/rnnoise)
  *  - C++17 compiler with std::filesystem support
@@ -127,7 +81,7 @@
  *                Add power optimization features
  *                Optimized RMS calculation
  *                Add --wav flag for debugging on wearable/embedded
- *                Add --no-low-power and --no-vad flags
+ *                Add --no-low-power and --no-vad flags on wearable/embedded
  * 
  */
 

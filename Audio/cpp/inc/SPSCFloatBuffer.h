@@ -18,48 +18,12 @@
  *   ✓ Real-time safe: No allocations after construction, all operations bounded time
  *   ✓ C++17 features: [[nodiscard]], noexcept, if constexpr for modern safety
  *
- * PERFORMANCE:
- *   - Single operations: ~2-4 atomic operations per call
- *   - Bulk operations: ~2-4 atomic operations regardless of sample count
- *   - For 512 samples: Bulk is ~256x faster than looping single operations
- *
- * THREAD SAFETY MODEL:
- *   - ONE producer thread may call push() and pushBulk()
- *   - ONE consumer thread may call pop() and popBulk()
- *   - Query methods (available(), capacity(), size()) are safe from any thread
- *   - Multiple producers or consumers will cause DATA RACES - use a mutex-based queue instead
- *
- * MEMORY ORDERING:
- *   Uses C++11 acquire-release semantics for correct lock-free synchronization:
- *   - Producer: Writes data, then releases head (makes data visible to consumer)
- *   - Consumer: Acquires head (sees producer's data), reads data, releases tail
- *   This ensures the consumer never sees uninitialized data and the producer never
- *   overwrites data the consumer is still reading.
- *
- * TYPICAL USAGE WITH PORTAUDIO:
- *   SPSCFloatBuffer buffer(4096);  // Power-of-2 capacity recommended
- *   
- *   // Processing thread (producer):
- *   float samples[512];
- *   process_audio(samples, 512);
- *   buffer.pushBulk(samples, 512);  // Non-blocking push
- *   
- *   // PortAudio callback (consumer):
- *   size_t got = buffer.popBulk(outputBuffer, framesPerBuffer);
- *   if (got < framesPerBuffer) {
- *       // Handle underrun: fill remainder with silence
- *   }
- *
- * CAPACITY NOTES:
- *   - Actual usable capacity is (requested_capacity - 1) due to the full/empty distinction
- *   - Size is rounded up to next power of 2 for performance
- *   - Example: Request 1000 → allocated 1024, usable 1023
- *
  * COMPILER REQUIREMENTS:
  *   - C++17 or later
  *   - Compiler with std::atomic support (GCC 4.8+, Clang 3.1+, MSVC 2015+)
  * @par Revision History
  * - 11-20-2025 — Initial check-in  
+ * - 12-09-2025 — Code cleaup
  */
  
 
@@ -86,7 +50,6 @@ public:
     SPSCFloatBuffer& operator=(const SPSCFloatBuffer&) = delete;
 
     // ---------- Single Sample Operations ----------
-
     // Push a single sample to the buffer
     // Returns: true if successful, false if buffer is full
     bool push(float sample) {
@@ -132,7 +95,6 @@ public:
     }
 
     // ---------- Bulk Operations (Optimized for Audio Buffers) ----------
-
     // Push multiple samples efficiently
     // Performs only ONE atomic operation regardless of sample count
     // Returns: number of samples actually pushed (may be less than count if buffer fills)
@@ -203,20 +165,45 @@ public:
         return size_;
     }
 
+// Peek at samples without removing them from the buffer
+// Useful for WAV recording in receiver mode where we want to record
+// what's going to be played without interfering with the audio callback
+// Returns: number of samples actually peeked (may be less than count if not enough available)
+size_t peekBulk(float* samples, size_t count, size_t offset = 0) const {
+    // Acquire both to get consistent snapshot
+    size_t currentTail = tail_.load(std::memory_order_acquire);
+    size_t currentHead = head_.load(std::memory_order_acquire);
+    
+    // Calculate available samples
+    size_t available = (currentHead - currentTail) & mask_;
+    
+    // Check if offset is valid
+    if (offset >= available) {
+        return 0;  // Offset beyond available data
+    }
+    
+    // Adjust available count for offset
+    size_t availableFromOffset = available - offset;
+    size_t toPeek = std::min(count, availableFromOffset);
+    
+    // Read samples starting from tail + offset (without modifying tail)
+    for (size_t i = 0; i < toPeek; ++i) {
+        samples[i] = buffer_[(currentTail + offset + i) & mask_];
+    }
+    
+    return toPeek;
+}
+
 private:
     const size_t size_;  // Actual buffer size (power of 2)
     const size_t mask_;  // Bitmask for fast modulo (size - 1)
     std::unique_ptr<float[]> buffer_;
     
     // Cache line padding (64 bytes) to prevent false sharing between CPU cores
-    // False sharing occurs when two threads access different variables on the same cache line,
-    // causing expensive cache invalidation and severe performance degradation in real-time audio.
-    // By aligning to 64 bytes, we guarantee each atomic is on its own cache line.
     alignas(64) std::atomic<size_t> head_;  // Written by producer, read by consumer
     alignas(64) std::atomic<size_t> tail_;  // Written by consumer, read by producer
     
     // Round up to next power of 2 for efficient bitwise modulo operations
-    // Uses bit-smearing technique for branchless computation
     [[nodiscard]] static constexpr size_t nextPowerOf2(size_t n) noexcept {
         if (n == 0) return 1;
         n--;
@@ -232,26 +219,3 @@ private:
         return n + 1;
     }
 };
-
-// Example usage with PortAudio:
-/*
-SPSCFloatBuffer buffer(4096);  // 4K sample buffer
-
-// In your audio processing thread (producer):
-float samples[512];
-// ... generate samples ...
-size_t pushed = buffer.pushBulk(samples, 512);
-
-// In your PortAudio callback (consumer):
-int audioCallback(const void* input, void* output, 
-                  unsigned long frameCount, ...) {
-    float* out = (float*)output;
-    size_t read = buffer.popBulk(out, frameCount);
-    
-    // Fill remainder with silence on underrun
-    for (size_t i = read; i < frameCount; ++i) {
-        out[i] = 0.0f;
-    }
-    return paContinue;
-}
-*/
