@@ -9,6 +9,8 @@
  * - Sender mode: Denoise → RTP → Network
  * - Receiver mode: Network → RTP → Speaker (direct, no jitter buffer yet)
  * 
+ * This is baseline v2.0 + basic network streaming (no jitter buffer, no PLC yet)
+ * 
  * USAGE:
  *  Local:     ./live_audio_denoise_network
  *  Sender:    ./live_audio_denoise_network --send --dest 192.168.1.100 --port 5004
@@ -17,9 +19,11 @@
  * @par Revision History
  * - 12-07-2025 — Step 1: Basic RTP send/receive added
  * - 12-09-2025 — Fixed WAV writer initialization bug
+ * - 12-16-2025 — Update ctx pointer/object access, thread-safety (NetworkStats, WAV writer, alignment, allocations)
  */
 
 #include <iostream>
+#include <iomanip>
 #include <filesystem>
 #include <csignal>
 #include <atomic>
@@ -29,6 +33,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <cstring>
+#include <mutex>
 #include "../inc/denoise_config.h"
 #include "../inc/SPSCFloatBuffer.h"
 #include "../inc/denormal_control.h"
@@ -90,14 +95,14 @@ struct RTPPacket {
 
 // ------------------ Network Statistics ------------------
 struct NetworkStats {
-    uint32_t packetsSent = 0;
-    uint32_t packetsReceived = 0;
-    uint32_t packetsLost = 0;
+    std::atomic<uint32_t> packetsSent{0};
+    std::atomic<uint32_t> packetsReceived{0};
+    std::atomic<uint32_t> packetsLost{0};
     
     void logStats() const {
-        std::cout << "[Network] Sent=" << packetsSent 
-                  << ", Received=" << packetsReceived
-                  << ", Lost=" << packetsLost << "\n";
+        std::cout << "[Network] Sent=" << packetsSent.load() 
+                  << ", Received=" << packetsReceived.load()
+                  << ", Lost=" << packetsLost.load() << "\n";
     }
 };
 
@@ -111,6 +116,7 @@ struct AudioIOContext {
 #if ENABLE_WAV_WRITING
     std::unique_ptr<WavWriter> wavInput;
     std::unique_ptr<WavWriter> wavOutput;
+    std::mutex wavMutex;  // Protect concurrent WAV writes
 #endif
 
 #if ENABLE_FILE_LOGGING
@@ -128,7 +134,7 @@ struct AudioIOContext {
     bool isVoiceActive;
     float smoothedRMS;
     
-    // NEW: Network state
+    // Network state
     bool networkSend = false;
     bool networkReceive = false;
     std::string destIP = "127.0.0.1";
@@ -139,6 +145,9 @@ struct AudioIOContext {
     uint32_t rtpTimestamp = 0;
     uint32_t ssrc = 0x12345678;  // Random SSRC
     NetworkStats netStats;
+    
+    // Pre-allocated RTP packet buffer (reused for each send)
+    std::vector<uint8_t> rtpSendBuffer;
     
     // Test tone generator
     bool generateTestTone = false;
@@ -158,30 +167,43 @@ struct AudioIOContext {
             }
         }
         
-#if ENABLE_WAV_WRITING
-        // Initialize WAV writers if enabled
-        if (enableWavWrite) {
-            try {
-                wavInput = std::make_unique<WavWriter>("input.wav", SAMPLE_RATE, numCh);
-                wavOutput = std::make_unique<WavWriter>("output.wav", SAMPLE_RATE, numCh);
-                std::cout << "[WAV] Recording enabled: input.wav and output.wav\n";
-            } catch (const std::exception& e) {
-                std::cerr << "[WAV] Failed to initialize: " << e.what() << "\n";
-                enableWavWrite = false;
-            }
-        }
-#else
-        if (enableWavWrite) {
-            std::cout << "[WAV] WAV writing is disabled in this build\n";
-            enableWavWrite = false;
-        }
-#endif
+        // Pre-allocate RTP buffer: header + max audio payload
+        // Assume worst case: 480 samples * 2 channels * 4 bytes = 3840 bytes + 12 byte header
+        rtpSendBuffer.reserve(4096);
 
 #if ENABLE_FILE_LOGGING
         logFile.open("denoise.log");
         if (logFile.is_open()) {
             logFile << "frame in_rms out_rms processed\n";
         }
+#endif
+    }
+    
+    bool initWavWriters(bool hasInput, bool hasOutput) {
+#if ENABLE_WAV_WRITING
+        if (!enableWavWrite) return false;
+        
+        try {
+            if (hasInput) {
+                wavInput = std::make_unique<WavWriter>("input.wav", SAMPLE_RATE, numChannels);
+                std::cout << "[WAV] Recording input to input.wav\n";
+            }
+            if (hasOutput) {
+                wavOutput = std::make_unique<WavWriter>("output.wav", SAMPLE_RATE, numChannels);
+                std::cout << "[WAV] Recording output to output.wav\n";
+            }
+            return true;
+        } catch (const std::exception& e) {
+            std::cerr << "[WAV] Failed to initialize: " << e.what() << "\n";
+            enableWavWrite = false;
+            return false;
+        }
+#else
+        if (enableWavWrite) {
+            std::cout << "[WAV] WAV writing is disabled in this build\n";
+            enableWavWrite = false;
+        }
+        return false;
 #endif
     }
 
@@ -241,10 +263,10 @@ bool initNetwork(AudioIOContext* ctx) {
 void sendRTPPacket(AudioIOContext* ctx, const float* audioData, size_t samples, int channels) {
     if (ctx->networkSocket < 0) return;
     
-    RTPPacket packet;
-    packet.header.sequenceNumber = htons(ctx->rtpSequence++);
-    packet.header.timestamp = htonl(ctx->rtpTimestamp);
-    packet.header.ssrc = htonl(ctx->ssrc);
+    RTPHeader header;
+    header.sequenceNumber = htons(ctx->rtpSequence++);
+    header.timestamp = htonl(ctx->rtpTimestamp);
+    header.ssrc = htonl(ctx->ssrc);
     
     // Update timestamp (samples per frame, not per channel)
     ctx->rtpTimestamp += samples;
@@ -253,8 +275,14 @@ void sendRTPPacket(AudioIOContext* ctx, const float* audioData, size_t samples, 
     // TODO: In production, encode with Opus here
     size_t totalSamples = samples * channels;
     size_t byteSize = totalSamples * sizeof(float);
-    packet.payload.resize(byteSize);
-    std::memcpy(packet.payload.data(), audioData, byteSize);
+    
+    // Use pre-allocated buffer
+    size_t packetSize = sizeof(RTPHeader) + byteSize;
+    ctx->rtpSendBuffer.resize(packetSize);
+    
+    // Serialize: header + payload
+    std::memcpy(ctx->rtpSendBuffer.data(), &header, sizeof(RTPHeader));
+    std::memcpy(ctx->rtpSendBuffer.data() + sizeof(RTPHeader), audioData, byteSize);
     
     // Send via UDP
     struct sockaddr_in dest;
@@ -266,16 +294,12 @@ void sendRTPPacket(AudioIOContext* ctx, const float* audioData, size_t samples, 
         return;
     }
     
-    // Serialize: header + payload
-    std::vector<uint8_t> buffer(sizeof(RTPHeader) + byteSize);
-    std::memcpy(buffer.data(), &packet.header, sizeof(RTPHeader));
-    std::memcpy(buffer.data() + sizeof(RTPHeader), packet.payload.data(), byteSize);
-    
-    ssize_t sent = sendto(ctx->networkSocket, buffer.data(), buffer.size(), 0,
+    ssize_t sent = sendto(ctx->networkSocket, ctx->rtpSendBuffer.data(), 
+                         ctx->rtpSendBuffer.size(), 0,
                          (struct sockaddr*)&dest, sizeof(dest));
     
     if (sent > 0) {
-        ctx->netStats.packetsSent++;
+        ctx->netStats.packetsSent.fetch_add(1, std::memory_order_relaxed);
     } else if (sent < 0) {
         // Non-blocking socket, so EAGAIN/EWOULDBLOCK is normal
         if (errno != EAGAIN && errno != EWOULDBLOCK) {
@@ -310,7 +334,7 @@ void networkReceiveThread(AudioIOContext* ctx) {
                 uint32_t expected = (lastSeq + 1) & 0xFFFF;
                 if (packet.header.sequenceNumber != expected) {
                     uint32_t lost = (packet.header.sequenceNumber - expected) & 0xFFFF;
-                    ctx->netStats.packetsLost += lost;
+                    ctx->netStats.packetsLost.fetch_add(lost, std::memory_order_relaxed);
                     std::cout << "[Network] Lost " << lost << " packets (seq " 
                               << expected << " to " << packet.header.sequenceNumber-1 << ")\n";
                 }
@@ -323,23 +347,44 @@ void networkReceiveThread(AudioIOContext* ctx) {
                                 buffer + received);
             packet.arrivalTime = std::chrono::steady_clock::now();
             
-            ctx->netStats.packetsReceived++;
+            ctx->netStats.packetsReceived.fetch_add(1, std::memory_order_relaxed);
             
             // Debug output for first few packets
-            if (ctx->netStats.packetsReceived <= 5) {
-                std::cout << "[Network] Received packet #" << ctx->netStats.packetsReceived
+            if (ctx->netStats.packetsReceived.load() <= 5) {
+                std::cout << "[Network] Received packet #" << ctx->netStats.packetsReceived.load()
                           << " seq=" << packet.header.sequenceNumber
                           << " size=" << payloadSize << " bytes\n";
             }
             
+            // Validate payload size is multiple of sizeof(float)
+            if (payloadSize % sizeof(float) != 0) {
+                std::cerr << "[Network] Invalid payload size " << payloadSize 
+                          << " (not multiple of float size), skipping packet\n";
+                continue;
+            }
+            
             // STEP 1: Direct playback (no jitter buffer yet)
-            // Copy payload directly to output buffer
+            // Copy payload to aligned buffer
             size_t samples = payloadSize / sizeof(float);
             if (samples > 0) {
-                size_t pushed = ctx->outputBuffer.pushBulk((const float*)packet.payload.data(), samples);
+                std::vector<float> audioData(samples);
+                std::memcpy(audioData.data(), packet.payload.data(), payloadSize);
+                
+                size_t pushed = ctx->outputBuffer.pushBulk(audioData.data(), samples);
                 if (pushed < samples) {
                     std::cout << "[Network] Output buffer full, dropped " << (samples - pushed) << " samples\n";
                 }
+                
+#if ENABLE_WAV_WRITING
+                // Record to WAV immediately after receiving (before playback)
+                if (ctx->enableWavWrite && ctx->wavOutput) {
+                    std::lock_guard<std::mutex> lock(ctx->wavMutex);
+                    size_t framesInPacket = samples / ctx->numChannels;
+                    for (size_t i = 0; i < framesInPacket; ++i) {
+                        ctx->wavOutput->writeFrame(&audioData[i * ctx->numChannels], ctx->numChannels);
+                    }
+                }
+#endif
             }
         } else if (received < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
             std::cerr << "[Network] Receive error: " << strerror(errno) << "\n";
@@ -425,22 +470,22 @@ void processingThread(AudioIOContext* ctx, int numChannels)
     std::cout << "[Processing] Thread started\n";
     
     while (keepRunning) {
-        // RECEIVER MODE: Just pass through network audio (for now)
+        // RECEIVER MODE: Just pass through network audio
         if (ctx->networkReceive && !ctx->networkSend) {
-            // Network thread handles receiving and pushing to output buffer
-            // Just log stats periodically
+            // Network thread handles receiving, WAV recording, and pushing to output buffer
+            // Just log stats periodically here
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::seconds>(
-                now - lastNetStats).count() >= 5) {
+                now - lastNetStats).count() >= CONSOLE_INTERVAL_SEC) {
                 
                 // Check output buffer status
                 size_t available = ctx->outputBuffer.available();
-                std::cout << "[Receiver] Packets=" << ctx->netStats.packetsReceived
-                          << ", Lost=" << ctx->netStats.packetsLost
+                std::cout << "[Receiver] Packets=" << ctx->netStats.packetsReceived.load()
+                          << ", Lost=" << ctx->netStats.packetsLost.load()
                           << ", OutputBuf=" << available << " samples\n";
                 lastNetStats = now;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
             continue;
         }
         
@@ -531,10 +576,19 @@ void processingThread(AudioIOContext* ctx, int numChannels)
         }
         
 #if ENABLE_WAV_WRITING
-        if (ctx->enableWavWrite && ctx->wavInput && ctx->wavOutput) {
-            for (int i = 0; i < FRAME_SIZE; ++i) {
-                ctx->wavInput->writeFrame(&inFrame[i * numChannels], numChannels);
-                ctx->wavOutput->writeFrame(&outFrame[i * numChannels], numChannels);
+        if (ctx->enableWavWrite) {
+            std::lock_guard<std::mutex> lock(ctx->wavMutex);
+            // Write input if we have it
+            if (ctx->wavInput) {
+                for (int i = 0; i < FRAME_SIZE; ++i) {
+                    ctx->wavInput->writeFrame(&inFrame[i * numChannels], numChannels);
+                }
+            }
+            // Write output if we have it
+            if (ctx->wavOutput) {
+                for (int i = 0; i < FRAME_SIZE; ++i) {
+                    ctx->wavOutput->writeFrame(&outFrame[i * numChannels], numChannels);
+                }
             }
         }
 #endif
@@ -556,13 +610,12 @@ void processingThread(AudioIOContext* ctx, int numChannels)
         if (std::chrono::duration_cast<std::chrono::seconds>(
             now - lastConsole).count() >= CONSOLE_INTERVAL_SEC) {
             float outRMS = calculateRMS(outFrame.data(), FRAME_SIZE, numChannels);
-            std::cout << "[Frame " << framesProcessed << "] in_rms=" << inRMS
-                      << ", out_rms=" << outRMS;
+            std::cout << "[Sender] Frame=" << framesProcessed 
+                      << ", in_rms=" << std::fixed << std::setprecision(3) << inRMS
+                      << ", out_rms=" << outRMS
+                      << ", tx_pkts=" << ctx->netStats.packetsSent.load();
             if (ctx->enableVAD) {
                 std::cout << ", vad=" << (ctx->isVoiceActive ? "active" : "idle");
-            }
-            if (ctx->networkSend) {
-                std::cout << ", net_tx=" << ctx->netStats.packetsSent;
             }
             std::cout << "\n";
             lastConsole = now;
@@ -572,8 +625,8 @@ void processingThread(AudioIOContext* ctx, int numChannels)
         if (ctx->networkSend) {
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::seconds>(
-                now - lastNetStats).count() >= 10) {
-                ctx->netStats.logStats();
+                now - lastNetStats).count() >= CONSOLE_INTERVAL_SEC) {
+                std::cout << "[Network] Transmitted " << ctx->netStats.packetsSent.load() << " packets\n";
                 lastNetStats = now;
             }
         }
@@ -631,7 +684,6 @@ bool parseArguments(int argc, char* argv[],
     return true;
 }
 
-// ------------------ Main ------------------
 int main(int argc, char* argv[]) {
     try {
         denormal_control::AutoDisable autoDisable;
@@ -673,8 +725,15 @@ int main(int argc, char* argv[]) {
         ctx.generateTestTone = testTone;
         
         if (testTone && !netSend) {
-            std::cout << "[Warning] --test-tone only works in sender mode\n";
+            std::cout << "[Warning] --test-tone only works in sender mode, ignoring\n";
             ctx.generateTestTone = false;
+        }
+        
+        bool hasInput = (netSend && !netRecv) || (!netSend && !netRecv);
+        bool hasOutput = true;
+        
+        if (ctx.enableWavWrite) {
+            ctx.initWavWriters(hasInput, hasOutput);
         }
         
         if (netSend || netRecv) {
@@ -691,23 +750,16 @@ int main(int argc, char* argv[]) {
         
         PaStream* stream = nullptr;
         
-        // Configure audio channels based on mode:
-        // - Send-only: Need input (mic), NO output (muted)
-        // - Receive-only: NO input, need output (speakers)
-        // - Local/both: Need both input and output
         int inputChannels = 0;
         int outputChannels = 0;
         
         if (netSend && !netRecv) {
-            // Send-only: mic input, no local playback
             inputChannels = numChannels;
-            outputChannels = 0;
+            outputChannels = numChannels;
         } else if (netRecv && !netSend) {
-            // Receive-only: no mic, only speakers
             inputChannels = 0;
             outputChannels = numChannels;
         } else {
-            // Local mode or simultaneous send/receive
             inputChannels = numChannels;
             outputChannels = numChannels;
         }
@@ -716,7 +768,6 @@ int main(int argc, char* argv[]) {
                                    SAMPLE_RATE, FRAME_SIZE, audioCallback, &ctx);
         if (err != paNoError) {
             std::cerr << "[PortAudio] Failed to open stream: " << Pa_GetErrorText(err) << "\n";
-            std::cerr << "[PortAudio] Channels: in=" << inputChannels << ", out=" << outputChannels << "\n";
             if (netThread) { 
                 keepRunning = false;
                 netThread->join(); 
@@ -728,20 +779,6 @@ int main(int argc, char* argv[]) {
         
         std::cout << "[PortAudio] Stream opened: in=" << inputChannels 
                   << " out=" << outputChannels << " @ " << SAMPLE_RATE << "Hz\n";
-        if (netSend && !netRecv) {
-            std::cout << "[Mode] Send-only - local playback DISABLED\n";
-            if (wav) {
-                std::cout << "[Mode] WAV recording will capture input and denoised output\n";
-            }
-        } else if (netRecv && !netSend) {
-            std::cout << "[Mode] Receive-only - microphone DISABLED\n";
-            if (wav) {
-                std::cout << "[Mode] WARNING: WAV recording disabled in receive-only mode\n";
-                ctx.enableWavWrite = false;  // Disable WAV in receive mode
-            }
-        } else if (!netSend && !netRecv) {
-            std::cout << "[Mode] Local processing only\n";
-        }
         
         err = Pa_StartStream(stream);
         if (err != paNoError) {
