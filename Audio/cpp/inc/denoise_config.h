@@ -100,6 +100,7 @@
 constexpr int NUM_CHANNELS_DEFAULT = 1;
 constexpr float DENORMAL_THRESHOLD = 1.0e-30f;
 constexpr float DENORMAL_GUARD_INITIAL = 1.0e-20f;
+constexpr int RTP_BUFFER_SIZE = 4096; 
 
 // ------------------ Low Power Mode ------------------
 // When LOW_POWER_DEFAULT is true (Wearable/Embedded):

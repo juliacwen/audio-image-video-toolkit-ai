@@ -23,7 +23,7 @@
  *   - Compiler with std::atomic support (GCC 4.8+, Clang 3.1+, MSVC 2015+)
  * @par Revision History
  * - 11-20-2025 — Initial check-in  
- * - 12-09-2025 — Code cleaup
+ * - 12-09-2025 — Code cleanup
  */
  
 

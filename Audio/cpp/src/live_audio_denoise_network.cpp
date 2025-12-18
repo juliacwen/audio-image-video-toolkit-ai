@@ -19,7 +19,7 @@
  * @par Revision History
  * - 12-07-2025 — Step 1: Basic RTP send/receive added
  * - 12-09-2025 — Fixed WAV writer initialization bug
- * - 12-16-2025 — Update ctx pointer/object access, thread-safety (NetworkStats, WAV writer, alignment, allocations)
+ * - 12-17-2025 — Update ctx pointer/object access, thread-safety (NetworkStats, WAV writer, alignment, allocations)
  */
 
 #include <iostream>
@@ -169,10 +169,10 @@ struct AudioIOContext {
         
         // Pre-allocate RTP buffer: header + max audio payload
         // Assume worst case: 480 samples * 2 channels * 4 bytes = 3840 bytes + 12 byte header
-        rtpSendBuffer.reserve(4096);
+        rtpSendBuffer.reserve(RTP_BUFFER_SIZE);
 
 #if ENABLE_FILE_LOGGING
-        logFile.open("denoise.log");
+        logFile.open("test_output/rms_log.txt");
         if (logFile.is_open()) {
             logFile << "frame in_rms out_rms processed\n";
         }
@@ -185,12 +185,12 @@ struct AudioIOContext {
         
         try {
             if (hasInput) {
-                wavInput = std::make_unique<WavWriter>("input.wav", SAMPLE_RATE, numChannels);
-                std::cout << "[WAV] Recording input to input.wav\n";
+                wavInput = std::make_unique<WavWriter>("test_output/input_raw.wav", SAMPLE_RATE, numChannels);
+                std::cout << "[WAV] Recording input to test_output/input_raw.wav\n";
             }
             if (hasOutput) {
-                wavOutput = std::make_unique<WavWriter>("output.wav", SAMPLE_RATE, numChannels);
-                std::cout << "[WAV] Recording output to output.wav\n";
+                wavOutput = std::make_unique<WavWriter>("test_output/output_denoised.wav", SAMPLE_RATE, numChannels);
+                std::cout << "[WAV] Recording output to test_output/output_denoised.wav\n";
             }
             return true;
         } catch (const std::exception& e) {
