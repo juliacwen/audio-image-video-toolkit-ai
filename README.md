@@ -160,6 +160,8 @@ pip install -r requirements.txt
 - Live audio denoising requires correct setup of PortAudio and rnnoise libraries.
 
 ## Commit / Changelog Highlights
+- 2025-12-07 — Audio: live denoise supports different modes
+- 2025-12-04 — Audio: overlapping FFT support 
 - 2025-12-03 — Added/Updated audio google test files 
 - 2025-12-02 — Added bypass to live_audio_denoise
 - 2025-12-01 — Updated video processing related c++ files
