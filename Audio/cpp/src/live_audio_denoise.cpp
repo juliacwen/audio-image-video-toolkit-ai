@@ -6,7 +6,8 @@
  * OVERVIEW:
  * Real-time audio denoising system using PortAudio and RNNoise with support for multiple
  * build profiles. Features lock-free ring buffering and voice activity detection.
-
+ * This is for local host only, not network streaming with send and receive
+ * 
  * Features:
  *  - Real-time audio input/output using PortAudio
  *  - Multi-channel support (1-16 channels depending on profile)

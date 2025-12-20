@@ -20,6 +20,7 @@
  * - 12-07-2025 — Step 1: Basic RTP send/receive added
  * - 12-09-2025 — Fixed WAV writer initialization bug
  * - 12-17-2025 — Update ctx pointer/object access, thread-safety (NetworkStats, WAV writer, alignment, allocations)
+ * - 12-20-2025 — Fix output wav name and atomic
  */
 
 #include <iostream>
@@ -141,8 +142,8 @@ struct AudioIOContext {
     int destPort = 5004;
     int listenPort = 5004;
     int networkSocket = -1;
-    uint16_t rtpSequence = 0;
-    uint32_t rtpTimestamp = 0;
+    std::atomic<uint16_t> rtpSequence{0};
+    std::atomic<uint32_t> rtpTimestamp{0};
     uint32_t ssrc = 0x12345678;  // Random SSRC
     NetworkStats netStats;
     
@@ -179,25 +180,35 @@ struct AudioIOContext {
 #endif
     }
     
-    bool initWavWriters(bool hasInput, bool hasOutput) {
+bool initWavWriters(bool hasInput, bool hasOutput, bool isSender, bool isReceiver) {
 #if ENABLE_WAV_WRITING
         if (!enableWavWrite) return false;
         
-        try {
-            if (hasInput) {
-                wavInput = std::make_unique<WavWriter>("test_output/input_raw.wav", SAMPLE_RATE, numChannels);
-                std::cout << "[WAV] Recording input to test_output/input_raw.wav\n";
-            }
-            if (hasOutput) {
-                wavOutput = std::make_unique<WavWriter>("test_output/output_denoised.wav", SAMPLE_RATE, numChannels);
-                std::cout << "[WAV] Recording output to test_output/output_denoised.wav\n";
-            }
-            return true;
-        } catch (const std::exception& e) {
-            std::cerr << "[WAV] Failed to initialize: " << e.what() << "\n";
-            enableWavWrite = false;
-            return false;
+    try {
+        if (hasInput) {
+            wavInput = std::make_unique<WavWriter>("test_output/input_raw.wav", SAMPLE_RATE, numChannels);
+            std::cout << "[WAV] Recording input to test_output/input_raw.wav\n";
         }
+        if (hasOutput) {
+            // Use different output filenames based on mode
+            std::string outputFilename;
+            if (isReceiver && !isSender) {
+                outputFilename = "test_output/output_denoised_received.wav";
+            } else if (isSender && !isReceiver) {
+                outputFilename = "test_output/output_denoised_sent.wav";
+            } else {
+                outputFilename = "test_output/output_denoised.wav";
+            }
+            
+            wavOutput = std::make_unique<WavWriter>(outputFilename, SAMPLE_RATE, numChannels);
+            std::cout << "[WAV] Recording output to " << outputFilename << "\n";
+        }
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[WAV] Failed to initialize: " << e.what() << "\n";
+        enableWavWrite = false;
+        return false;
+    }
 #else
         if (enableWavWrite) {
             std::cout << "[WAV] WAV writing is disabled in this build\n";
@@ -264,19 +275,26 @@ void sendRTPPacket(AudioIOContext* ctx, const float* audioData, size_t samples, 
     if (ctx->networkSocket < 0) return;
     
     RTPHeader header;
-    header.sequenceNumber = htons(ctx->rtpSequence++);
-    header.timestamp = htonl(ctx->rtpTimestamp);
+    
+    // ATOMIC OPERATION: fetch_add returns old value, then increments
+    // Hardware guarantees this is one atomic operation (no race possible)
+    uint16_t seq = ctx->rtpSequence.fetch_add(1, std::memory_order_relaxed);
+    header.sequenceNumber = htons(seq);
+    
+    // ATOMIC OPERATION: load current timestamp
+    uint32_t ts = ctx->rtpTimestamp.load(std::memory_order_relaxed);
+    header.timestamp = htonl(ts);
+    
+    // ATOMIC OPERATION: increment timestamp for next packet
+    ctx->rtpTimestamp.fetch_add(samples, std::memory_order_relaxed);
+    
     header.ssrc = htonl(ctx->ssrc);
     
-    // Update timestamp (samples per frame, not per channel)
-    ctx->rtpTimestamp += samples;
-    
     // Payload: raw float audio (interleaved if multi-channel)
-    // TODO: In production, encode with Opus here
     size_t totalSamples = samples * channels;
     size_t byteSize = totalSamples * sizeof(float);
     
-    // Use pre-allocated buffer
+    // Use pre-allocated buffer (note: only one thread uses it)
     size_t packetSize = sizeof(RTPHeader) + byteSize;
     ctx->rtpSendBuffer.resize(packetSize);
     
@@ -310,7 +328,7 @@ void sendRTPPacket(AudioIOContext* ctx, const float* audioData, size_t samples, 
 
 // Network receive thread
 void networkReceiveThread(AudioIOContext* ctx) {
-    uint8_t buffer[2048];
+    uint8_t buffer[RTP_BUFFER_SIZE];
     
     std::cout << "[Network] Receive thread started\n";
     
@@ -733,9 +751,8 @@ int main(int argc, char* argv[]) {
         bool hasOutput = true;
         
         if (ctx.enableWavWrite) {
-            ctx.initWavWriters(hasInput, hasOutput);
+            ctx.initWavWriters(hasInput, hasOutput, netSend, netRecv);
         }
-        
         if (netSend || netRecv) {
             if (!initNetwork(&ctx)) {
                 Pa_Terminate();
