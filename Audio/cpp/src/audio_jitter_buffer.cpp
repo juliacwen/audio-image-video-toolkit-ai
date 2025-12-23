@@ -12,6 +12,7 @@
 #include "../inc/audio_jitter_buffer.h"
 #include "../inc/denoise_config.h"
 
+
 AudioJitterBuffer::AudioJitterBuffer(int sampleRate, int channels, int targetMs)
     : sampleRate_(sampleRate)
     , channels_(channels)
@@ -25,6 +26,7 @@ AudioJitterBuffer::AudioJitterBuffer(int sampleRate, int channels, int targetMs)
     maxSamples_ = (sampleRate * JITTER_BUFFER_MAX_MS) / MS_PER_SECOND * channels;
 }
 
+// add RTP Packet
 bool AudioJitterBuffer::addPacket(const RTPPacket& packet) {
     std::lock_guard<std::mutex> lock(mutex_);
     
