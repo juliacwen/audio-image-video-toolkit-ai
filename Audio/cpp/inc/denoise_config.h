@@ -105,22 +105,6 @@ constexpr float DENORMAL_GUARD_INITIAL = 1.0e-20f;
 constexpr int MAX_RTP_PACKET_SIZE = 4096;     // Maximum RTP packet size
 constexpr int RTP_BUFFER_SIZE = 4096; //FRAME_SIZE (480 samples) × numChannels (2) × sizeof(float) (4 bytes) = 480 × 2 × 4 = 3840 bytes Total: 12 + 3840 = 3852 bytes
 
-// ------------------ Jitter Buffer Configuration ------------------
-constexpr int JITTER_BUFFER_MIN_MS = 40;      // Minimum latency (ms)
-constexpr int JITTER_BUFFER_MAX_MS = 200;     // Maximum latency (ms)
-constexpr int JITTER_BUFFER_TARGET_MS = 80;   // Target latency (ms)
-
-// Jitter buffer adaptation thresholds
-constexpr int JITTER_UNDERRUN_THRESHOLD = 20;      // Underruns before increasing buffer
-constexpr int JITTER_OVERFLOW_THRESHOLD = 10;      // Overflows before decreasing buffer
-constexpr int JITTER_INCREASE_STEP_MS = 20;        // Increase buffer by this amount
-constexpr int JITTER_DECREASE_STEP_MS = 10;        // Decrease buffer by this amount
-constexpr int JITTER_UNDERRUN_PRINT_INTERVAL = 10; // Print underrun message every N underruns
-
-// Time conversion
-constexpr int MS_PER_SECOND = 1000;
-
-
 // ------------------ Low Power Mode ------------------
 // When LOW_POWER_DEFAULT is true (Wearable/Embedded):
 // - WAV file recording is disabled by default (use --wav flag to enable for debugging)

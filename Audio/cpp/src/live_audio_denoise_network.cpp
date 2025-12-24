@@ -3,13 +3,23 @@
  * @brief Live Audio Denoising with Network Streaming Support (Step 1: Basic RTP)
  * @author Julia Wen (wendigilane@gmail.com)
  * 
- * STEP 1: Basic RTP Send/Receive
+ * STEP 1: Basic RTP Send/Receive  (This is baseline v2.0 + basic network streaming (no jitter buffer, no PLC yet)
  * - RTP packet structure and serialization
  * - UDP socket setup (Linux/macOS)
  * - Sender mode: Denoise → RTP → Network
  * - Receiver mode: Network → RTP → Speaker (direct, no jitter buffer yet)
  * 
- * This is baseline v2.0 + basic network streaming (no jitter buffer, no PLC yet)
+ * STEP 2: Adaptive buffering/jitter - Adjusts from 40-200ms based on network conditions
+ * Packet loss handling - Inserts silence for lost packets
+ * Reordering - Handles out-of-order packets
+ * Statistics - Tracks packets received, lost, duplicates, underruns, overflows
+ * Underrun protection - Rebuffers if the buffer empties
+ * 
+ * How it works:
+ * Packets arrive → Added to jitter buffer (sorted by arrival)
+ * Processing thread pulls samples at steady rate
+ * Buffer starts playing once it reaches target latency (80ms default)
+ * Adapts buffer size up if underruns occur, down if consistently full
  * 
  * USAGE:
  *  Local:     ./live_audio_denoise_network
@@ -21,6 +31,7 @@
  * - 12-09-2025 — Fixed WAV writer initialization bug
  * - 12-17-2025 — Update ctx pointer/object access, thread-safety (NetworkStats, WAV writer, alignment, allocations)
  * - 12-20-2025 — Fix output wav name and atomic
+ * - 12-24-2025 — Add Jitter Buffer
  */
 
 #include <iostream>
@@ -38,6 +49,7 @@
 #include "../inc/denoise_config.h"
 #include "../inc/SPSCFloatBuffer.h"
 #include "../inc/denormal_control.h"
+#include "../inc/audio_jitter_buffer.h"
 #include "rnnoise.h"
 #include "portaudio.h"
 
@@ -68,52 +80,15 @@
 std::atomic<bool> keepRunning{true};
 void intHandler(int) { keepRunning.store(false); }
 
-// ------------------ RTP Structures ------------------
-
-#pragma pack(push, 1)
-struct RTPHeader {
-    uint8_t vpxcc;           // version(2), padding(1), extension(1), csrc count(4)
-    uint8_t mpt;             // marker(1), payload type(7)
-    uint16_t sequenceNumber; // Network byte order
-    uint32_t timestamp;      // Network byte order
-    uint32_t ssrc;           // Network byte order
-    
-    RTPHeader() {
-        vpxcc = 0x80;  // version 2, no padding, no extension, no CSRC
-        mpt = 111;     // Opus payload type (we'll use for raw audio for now)
-        sequenceNumber = 0;
-        timestamp = 0;
-        ssrc = 0;
-    }
-};
-#pragma pack(pop)
-
-struct RTPPacket {
-    RTPHeader header;
-    std::vector<uint8_t> payload;
-    std::chrono::steady_clock::time_point arrivalTime;
-};
-
-// ------------------ Network Statistics ------------------
-struct NetworkStats {
-    std::atomic<uint32_t> packetsSent{0};
-    std::atomic<uint32_t> packetsReceived{0};
-    std::atomic<uint32_t> packetsLost{0};
-    
-    void logStats() const {
-        std::cout << "[Network] Sent=" << packetsSent.load() 
-                  << ", Received=" << packetsReceived.load()
-                  << ", Lost=" << packetsLost.load() << "\n";
-    }
-};
-
 // ------------------ Audio IO Context (Extended) ------------------
 struct AudioIOContext {
     // Original baseline members
     std::vector<DenoiseState*> states;
     SPSCFloatBuffer inputBuffer;
     SPSCFloatBuffer outputBuffer;
-
+    // Add jitter buffer
+    std::unique_ptr<AudioJitterBuffer> jitterBuffer;
+    
 #if ENABLE_WAV_WRITING
     std::unique_ptr<WavWriter> wavInput;
     std::unique_ptr<WavWriter> wavOutput;
@@ -328,12 +303,18 @@ void sendRTPPacket(AudioIOContext* ctx, const float* audioData, size_t samples, 
 
 // Network receive thread
 void networkReceiveThread(AudioIOContext* ctx) {
-    uint8_t buffer[RTP_BUFFER_SIZE];
+    uint8_t buffer[MAX_RTP_PACKET_SIZE] = {0};
     
     std::cout << "[Network] Receive thread started\n";
     
-    uint32_t lastSeq = 0;
-    bool firstPacket = true;
+    // Create jitter buffer
+    ctx->jitterBuffer = std::make_unique<AudioJitterBuffer>(
+        SAMPLE_RATE, ctx->numChannels, JITTER_BUFFER_TARGET_MS);
+    
+    uint64_t receiveErrors = 0;
+    uint64_t lastPacketCount = 0;
+    auto lastErrorLog = std::chrono::steady_clock::now();
+    auto lastActivityCheck = std::chrono::steady_clock::now();
     
     while (keepRunning) {
         ssize_t received = recvfrom(ctx->networkSocket, buffer, sizeof(buffer), 
@@ -347,72 +328,85 @@ void networkReceiveThread(AudioIOContext* ctx) {
             packet.header.timestamp = ntohl(packet.header.timestamp);
             packet.header.ssrc = ntohl(packet.header.ssrc);
             
-            // Detect packet loss
-            if (!firstPacket) {
-                uint32_t expected = (lastSeq + 1) & 0xFFFF;
-                if (packet.header.sequenceNumber != expected) {
-                    uint32_t lost = (packet.header.sequenceNumber - expected) & 0xFFFF;
-                    ctx->netStats.packetsLost.fetch_add(lost, std::memory_order_relaxed);
-                    std::cout << "[Network] Lost " << lost << " packets (seq " 
-                              << expected << " to " << packet.header.sequenceNumber-1 << ")\n";
-                }
-            }
-            lastSeq = packet.header.sequenceNumber;
-            firstPacket = false;
-            
             size_t payloadSize = received - sizeof(RTPHeader);
             packet.payload.assign(buffer + sizeof(RTPHeader), 
                                 buffer + received);
             packet.arrivalTime = std::chrono::steady_clock::now();
             
-            ctx->netStats.packetsReceived.fetch_add(1, std::memory_order_relaxed);
-            
-            // Debug output for first few packets
-            if (ctx->netStats.packetsReceived.load() <= 5) {
-                std::cout << "[Network] Received packet #" << ctx->netStats.packetsReceived.load()
-                          << " seq=" << packet.header.sequenceNumber
-                          << " size=" << payloadSize << " bytes\n";
-            }
-            
-            // Validate payload size is multiple of sizeof(float)
+            // Validate payload size
             if (payloadSize % sizeof(float) != 0) {
-                std::cerr << "[Network] Invalid payload size " << payloadSize 
-                          << " (not multiple of float size), skipping packet\n";
+                std::cerr << "[Network] Invalid payload size " << payloadSize << "\n";
                 continue;
             }
             
-            // STEP 1: Direct playback (no jitter buffer yet)
-            // Copy payload to aligned buffer
-            size_t samples = payloadSize / sizeof(float);
-            if (samples > 0) {
-                std::vector<float> audioData(samples);
-                std::memcpy(audioData.data(), packet.payload.data(), payloadSize);
-                
-                size_t pushed = ctx->outputBuffer.pushBulk(audioData.data(), samples);
-                if (pushed < samples) {
-                    std::cout << "[Network] Output buffer full, dropped " << (samples - pushed) << " samples\n";
-                }
-                
-#if ENABLE_WAV_WRITING
-                // Record to WAV immediately after receiving (before playback)
-                if (ctx->enableWavWrite && ctx->wavOutput) {
-                    std::lock_guard<std::mutex> lock(ctx->wavMutex);
-                    size_t framesInPacket = samples / ctx->numChannels;
-                    for (size_t i = 0; i < framesInPacket; ++i) {
-                        ctx->wavOutput->writeFrame(&audioData[i * ctx->numChannels], ctx->numChannels);
-                    }
-                }
-#endif
+            ctx->netStats.packetsReceived.fetch_add(1, std::memory_order_relaxed);
+            
+            // Add to jitter buffer
+            if (!ctx->jitterBuffer->addPacket(packet)) {
+                // Packet rejected (duplicate or other issue)
+                // This is normal, don't log
             }
-        } else if (received < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-            std::cerr << "[Network] Receive error: " << strerror(errno) << "\n";
+            
+            // Debug output for first few packets
+            uint64_t pktCount = ctx->netStats.packetsReceived.load();
+            if (pktCount <= 5) {
+                std::cout << "[Network] Received packet #" << pktCount
+                          << " seq=" << packet.header.sequenceNumber
+                          << " ssrc=0x" << std::hex << packet.header.ssrc << std::dec
+                          << " size=" << payloadSize << " bytes"
+                          << " buffered=" << ctx->jitterBuffer->getBufferedSamples() << " samples\n";
+            }
+            
+        } else if (received < 0) {
+            if (errno != EAGAIN && errno != EWOULDBLOCK) {
+                receiveErrors++;
+                
+                // Log errors but not too frequently (once per second max)
+                auto now = std::chrono::steady_clock::now();
+                if (std::chrono::duration_cast<std::chrono::seconds>(
+                    now - lastErrorLog).count() >= 1) {
+                    std::cerr << "[Network] Receive error: " << strerror(errno) 
+                              << " (total errors: " << receiveErrors << ")\n";
+                    lastErrorLog = now;
+                }
+            }
+        } else if (received == 0) {
+            std::cerr << "[Network] Socket closed\n";
+            break;
+        }
+        
+        // Check for inactivity (no packets for 5 seconds)
+        auto now = std::chrono::steady_clock::now();
+        if (std::chrono::duration_cast<std::chrono::seconds>(
+            now - lastActivityCheck).count() >= 5) {
+            
+            uint64_t currentPacketCount = ctx->netStats.packetsReceived.load();
+            if (currentPacketCount == lastPacketCount) {
+                std::cout << "[Network] WARNING: No packets received for 5 seconds "
+                          << "(total: " << currentPacketCount << ", errors: " << receiveErrors << ")\n";
+            }
+            lastPacketCount = currentPacketCount;
+            lastActivityCheck = now;
         }
         
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     
     std::cout << "[Network] Receive thread stopped\n";
+    std::cout << "[Network] Total receive errors: " << receiveErrors << "\n";
+    
+    // Print final jitter buffer statistics
+    if (ctx->jitterBuffer) {
+        auto stats = ctx->jitterBuffer->getStats();
+        std::cout << "[AudioJitterBuffer] Final stats:\n"
+                  << "  Received: " << stats.packetsReceived << "\n"
+                  << "  Lost: " << stats.packetsLost << "\n"
+                  << "  Duplicates: " << stats.duplicates << "\n"
+                  << "  Underruns: " << stats.underruns << "\n"
+                  << "  Overflows: " << stats.overflow << "\n";
+    }
 }
+
 
 #else // !NETWORK_SUPPORTED
 
@@ -471,7 +465,7 @@ inline float calculateRMS(const float* data, size_t count, int stride = 1) {
     return std::sqrt(sum / count);
 }
 
-// ------------------ Processing Thread ------------------
+// ------------------ Processing Thread (Wait for output space, Buffer management) ------------------
 void processingThread(AudioIOContext* ctx, int numChannels)
 {
     denormal_control::AutoDisable autoDisable;
@@ -485,25 +479,108 @@ void processingThread(AudioIOContext* ctx, int numChannels)
     auto lastConsole = std::chrono::steady_clock::now();
     auto lastNetStats = lastConsole;
     
+    // Target output buffer level (keep it low for low latency)
+    const size_t TARGET_OUTPUT_BUFFER_SAMPLES = FRAME_SIZE * numChannels * 4;  // ~40ms buffer
+    
     std::cout << "[Processing] Thread started\n";
     
     while (keepRunning) {
-        // RECEIVER MODE: Just pass through network audio
+        // RECEIVER MODE: Get samples from jitter buffer
         if (ctx->networkReceive && !ctx->networkSend) {
-            // Network thread handles receiving, WAV recording, and pushing to output buffer
-            // Just log stats periodically here
+            // Check output buffer level
+            size_t outputAvail = ctx->outputBuffer.available();
+            size_t outputCap = ctx->outputBuffer.capacity();
+            size_t outputSpace = outputCap - outputAvail;
+            
+            // Check if it's time to print stats
             auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::seconds>(
-                now - lastNetStats).count() >= CONSOLE_INTERVAL_SEC) {
+            bool shouldPrintStats = std::chrono::duration_cast<std::chrono::seconds>(
+                now - lastNetStats).count() >= CONSOLE_INTERVAL_SEC;
+            
+            // CRITICAL FIX: Only pull from jitter buffer if output buffer is getting low
+            // This prevents excessive buffering and latency
+            if (outputAvail > TARGET_OUTPUT_BUFFER_SAMPLES) {
+                // Output buffer has enough data, don't pull more yet
                 
-                // Check output buffer status
-                size_t available = ctx->outputBuffer.available();
-                std::cout << "[Receiver] Packets=" << ctx->netStats.packetsReceived.load()
-                          << ", Lost=" << ctx->netStats.packetsLost.load()
-                          << ", OutputBuf=" << available << " samples\n";
+                // Print Waiting stats only at interval
+                if (shouldPrintStats && ctx->jitterBuffer) {
+                    auto stats = ctx->jitterBuffer->getStats();
+                    int latencyMs = ctx->jitterBuffer->getCurrentLatencyMs();
+                    size_t buffered = ctx->jitterBuffer->getBufferedSamples();
+                    
+                    // Calculate total latency (same as Active)
+                    int outputLatencyMs = (outputAvail * MS_PER_SECOND) / (SAMPLE_RATE * numChannels);
+                    int totalLatencyMs = latencyMs + outputLatencyMs;
+                    
+                    std::cout << "[Receiver:Waiting] Frames=" << framesProcessed
+                              << ", Pkts=" << stats.packetsReceived
+                              << ", Lost=" << stats.packetsLost
+                              << ", TotalLatency=" << totalLatencyMs << "ms"
+                              << " (Jitter=" << latencyMs << "ms + Output=" << outputLatencyMs << "ms)"
+                              << ", JitterBuf=" << buffered << " samples"
+                              << ", Underruns=" << stats.underruns << "\n";
+                    lastNetStats = now;
+                }
+                
+                std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                continue;
+            }
+            
+            // Output buffer needs more data, check if we have space
+            if (outputSpace < totalSamplesNeeded) {
+                // Still not enough space, wait
+                std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                continue;
+            }
+            
+            if (ctx->jitterBuffer) {
+                // Get samples from jitter buffer
+                size_t got = ctx->jitterBuffer->getSamples(outFrame.data(), totalSamplesNeeded);
+                
+                // Push to output
+                size_t pushed = ctx->outputBuffer.pushBulk(outFrame.data(), got);
+                
+                if (pushed < got) {
+                    std::cerr << "[Receiver] Warning: Output buffer full, dropped " 
+                              << (got - pushed) << " samples\n";
+                }
+                
+#if ENABLE_WAV_WRITING
+                // Record to WAV
+                if (ctx->enableWavWrite && ctx->wavOutput) {
+                    std::lock_guard<std::mutex> lock(ctx->wavMutex);
+                    for (size_t i = 0; i < FRAME_SIZE; ++i) {
+                        ctx->wavOutput->writeFrame(&outFrame[i * numChannels], numChannels);
+                    }
+                }
+#endif
+                
+                framesProcessed++;
+            }
+            
+            // Periodic stats (only when actively processing)
+            if (shouldPrintStats && ctx->jitterBuffer) {
+                auto stats = ctx->jitterBuffer->getStats();
+                int latencyMs = ctx->jitterBuffer->getCurrentLatencyMs();
+                size_t buffered = ctx->jitterBuffer->getBufferedSamples();
+                outputAvail = ctx->outputBuffer.available();
+                
+                // Calculate total latency
+                int outputLatencyMs = (outputAvail * MS_PER_SECOND) / (SAMPLE_RATE * numChannels);
+                int totalLatencyMs = latencyMs + outputLatencyMs;
+                
+                std::cout << "[Receiver:Active] Frames=" << framesProcessed
+                          << ", Pkts=" << stats.packetsReceived
+                          << ", Lost=" << stats.packetsLost
+                          << ", TotalLatency=" << totalLatencyMs << "ms"
+                          << " (Jitter=" << latencyMs << "ms + Output=" << outputLatencyMs << "ms)"
+                          << ", JitterBuf=" << buffered << " samples"
+                          << ", Underruns=" << stats.underruns << "\n";
                 lastNetStats = now;
             }
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            
+            // Small sleep to yield CPU
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             continue;
         }
         
@@ -770,17 +847,21 @@ int main(int argc, char* argv[]) {
         int inputChannels = 0;
         int outputChannels = 0;
         
+        // Sender mode: Captures mic, no speaker output → no feedback loop
+        // Receiver mode: No mic input, plays on speaker → hears remote audio
+        // Local mode: Both enabled (for testing without network)
         if (netSend && !netRecv) {
             inputChannels = numChannels;
-            outputChannels = numChannels;
+            outputChannels = 0;  // No local playback in sender mode
         } else if (netRecv && !netSend) {
             inputChannels = 0;
             outputChannels = numChannels;
-        } else {
+        } else {                //local mode
             inputChannels = numChannels;
-            outputChannels = numChannels;
+            //outputChannels = numChannels;
+            outputChannels = 0;
         }
-        
+                
         err = Pa_OpenDefaultStream(&stream, inputChannels, outputChannels, paFloat32,
                                    SAMPLE_RATE, FRAME_SIZE, audioCallback, &ctx);
         if (err != paNoError) {

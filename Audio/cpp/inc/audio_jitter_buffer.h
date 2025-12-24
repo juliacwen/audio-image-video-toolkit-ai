@@ -4,6 +4,7 @@
  * @author Julia Wen (wendigilane@gmail.com)
  * @par Revision History
  * - 12-23-2025 — Initial Checkin
+ * - 12-24-2025 — Add more jitter buffer config constants
  */
 
 #ifndef AUDIO_JITTER_BUFFER_H
@@ -14,6 +15,34 @@
 #include <cstdint>
 #include <vector>
 #include <chrono>
+
+// ------------------ Jitter Buffer Configuration ------------------
+constexpr int JITTER_BUFFER_MIN_MS = 40;      // Minimum latency (ms)
+constexpr int JITTER_BUFFER_MAX_MS = 200;     // Maximum latency (ms)
+constexpr int JITTER_BUFFER_TARGET_MS = 80;   // Target latency (ms)
+
+// Jitter buffer adaptation thresholds
+constexpr int JITTER_UNDERRUN_THRESHOLD = 20;      // Underruns before increasing buffer
+constexpr int JITTER_OVERFLOW_THRESHOLD = 10;      // Overflows before decreasing buffer
+constexpr int JITTER_INCREASE_STEP_MS = 20;        // Increase buffer by this amount
+constexpr int JITTER_DECREASE_STEP_MS = 10;        // Decrease buffer by this amount
+constexpr int JITTER_UNDERRUN_PRINT_INTERVAL = 10; // Print underrun message every N underruns
+
+// Time conversion
+constexpr int MS_PER_SECOND = 1000;
+
+// Network statistics
+struct NetworkStats {
+    std::atomic<uint64_t> packetsSent{0};      
+    std::atomic<uint64_t> packetsReceived{0};  
+    std::atomic<uint32_t> packetsLost{0};
+    
+    void logStats() const {
+        std::cout << "[Network] Sent=" << packetsSent.load() 
+                  << ", Received=" << packetsReceived.load()
+                  << ", Lost=" << packetsLost.load() << "\n";
+    }
+};
 
 // RTP Header structure
 #pragma pack(push, 1)
@@ -60,7 +89,7 @@ public:
     
     // Statistics
     struct Statistics {
-        uint32_t packetsReceived = 0;
+        uint64_t packetsReceived = 0;  // Changed from uint32_t to prevent overflow
         uint32_t packetsLost = 0;
         uint32_t duplicates = 0;
         uint32_t underruns = 0;
