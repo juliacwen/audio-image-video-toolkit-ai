@@ -5,7 +5,7 @@
 This repository contains AI/ML pipelines, tools, and demos for **Audio**, **Image**, **Video**, and **cross-modal multimodal AI applications**. It includes **C++ and Python source code**, **TypeScript and JavaScript React demos** (under `Image/typescript/web` and `Image/javascript/web`), **Streamlit apps**, **database integration**, and **tests** (GoogleTest / Pytest). Each domain provides end-to-end workflows, training/prediction scripts, and interactive demos for research and experimentation. 
 
 ## Project Overview
-- **Audio:** WAV → CSV, FFT spectra (multiple window types), MLP/NN/RNN models, optional LLM explanations, **live audio denoise with PortAudio and rnnoise**, **2D Conv GAN denoising**.
+- **Audio:** WAV → CSV, FFT spectra (multiple window types), MLP/NN/RNN models, optional LLM explanations, **live audio denoise with PortAudio and rnnoise, local mode and network mode with RTP and jitter buffer **, **2D Conv GAN denoising**.
 - **Image:** Crescent detection (HOG+SVM, CNN, Vision Transformer), PyTorch/TensorFlow implementations, dataset generation, **interactive Streamlit apps**, **TypeScript and JavaScript React demos** under `Image/typescript/web` and `Image/javascript/web`.
 - **Video:** Motion estimation, frame prediction, stereo disparity, optical flow, trajectory analysis, MiDaS-based depth estimation.
 - **Multimodal / Cross-Modal AI:** Graph-based reasoning, LLM explanations, interactive demos, Bayesian apps, and database support.
@@ -51,7 +51,8 @@ python_matlab_analogy/
 ## Audio Processing
 ### C++ Components
 - `fft_utils.cpp` — FFT window functions, buffer prep, magnitude and dB helpers.
-- `live_audio_denoise.cpp` — Live audio denoising pipeline with PortAudio and rnnoise.
+- `live_audio_denoise.cpp` — Live audio denoising pipeline with PortAudio and rnnoise, local mode.
+- `live_audio_denoise_network.cpp` — Live audio denoising pipeline with PortAudio and rnnoise, network mode with RTP and jitter buffer.
 - `wav_freq_csv.cpp` — WAV → CSV and FFT Spectrum CSV, supports multiple FFT windows
 - `wav_freq_csv_channelized.cpp` — Multi-channel WAV → CSV + FFT spectrum.
 - `wav_to_csv.cpp` — WAV → CSV converter (16-bit, 24-bit, Float32)
@@ -160,6 +161,9 @@ pip install -r requirements.txt
 - Live audio denoising requires correct setup of PortAudio and rnnoise libraries.
 
 ## Commit / Changelog Highlights
+- 2025-12-24 — Audio: live denoise network mode step 2 with jitter buffer
+- 2025-12-17 — Audio: live denoise network mode step 1
+- 2025-12-09 — Audio: live denoise network mode initial
 - 2025-12-07 — Audio: live denoise supports different modes
 - 2025-12-04 — Audio: overlapping FFT support 
 - 2025-12-03 — Added/Updated audio google test files 

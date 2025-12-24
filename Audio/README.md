@@ -5,9 +5,9 @@
 This repository section contains projects for **Audio** processing, including C++ and Python tools, automated tests, AI-assisted workflows, and Bayesian inference modules.
 
 ## Features
-- C++ components include WAV reading/writing, FFT computation, and live audio denoising.
+- C++ components include WAV reading/writing, FFT computation, and live audio denoising (local and network RTP).
 - Convert WAV files to CSV, generate FFT spectra with multiple window types.
-- Live audio denoise with PortAudio and rnnoise, bypass option, SPSC, denormal control
+- Live audio denoise with PortAudio and rnnoise, bypass option, SPSC, denormal control, local mode and network RTP with jitter buffer.
 - End-to-end AI-assisted FFT workflows: generate synthetic WAVs, train MLP/RNN/PyTorch NN models, and predict tone probabilities.
 - Perform automated FFT windowing tests with rectangular, Hann, Hamming, and Blackman windows.
 - Train and infer **GAN-based audio denoising** models using YAML configuration.
@@ -36,16 +36,20 @@ Audio/
 
 ### C++ Components
 - **Headers (`Audio/cpp/inc/`)**
-  - `SPSCFloatBuffer.h` — Single-producer/single-consumer lock-free float buffer.
-  - `denormal_control.h` — Prevent CPU denormals and small-noise injection helpers.
+  - `audio_jitter_buffer.h` — Audio jitter buffer related.
+  - `denoise_config.h` — Denoise related config parameters.
+  - `denormal_control.h` — Denormals control and small-noise injection helpers.
   - `error_codes.h` — Error code enumerations and helper functions.
   - `fft_utils.h` — FFT window functions, buffer prep, magnitude and dB helpers.
+  - `SPSCFloatBuffer.h` — Single-producer/single-consumer lock-free float buffer.
   - `wav_utils.h` — WAV header parsing, sample conversion, endian helpers.
   - `wav_writer.h` — WAV writing routines for PCM16/24/Float32 with safe I/O.
 
 - **Sources (`Audio/cpp/src/`)**
+  - `audio_jitter_buffer.cpp` — Implements audio jitter buffer for network streaming with RTP.
   - `fft_utils.cpp` — Implements window functions and FFT helpers.
-  - `live_audio_denoise.cpp` — Live audio denoising pipeline with PortAudio and rnnoise.
+  - `live_audio_denoise.cpp` — Live audio denoising pipeline with PortAudio and rnnoise, local mode.
+  - `live_audio_denoise_network.cpp` — Live audio denoising pipeline with PortAudio and rnnoise, network RTP send and receive.
   - `wav_comp_diff.cpp` — Compare WAVs or WAV CSVs and output differences.
   - `wav_freq_csv.cpp` — WAV → CSV + FFT spectrum.
   - `wav_freq_csv_channelized.cpp` — Multi-channel WAV → CSV + FFT spectrum.
