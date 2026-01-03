@@ -15,6 +15,7 @@
 #include <cstdint>
 #include <vector>
 #include <chrono>
+#include "network_rtp.h"
 
 // ------------------ Jitter Buffer Configuration ------------------
 constexpr int JITTER_BUFFER_MIN_MS = 40;      // Minimum latency (ms)
@@ -31,45 +32,6 @@ constexpr int JITTER_UNDERRUN_PRINT_INTERVAL = 10; // Print underrun message eve
 // Time conversion
 constexpr int MS_PER_SECOND = 1000;
 
-// Network statistics
-struct NetworkStats {
-    std::atomic<uint64_t> packetsSent{0};      
-    std::atomic<uint64_t> packetsReceived{0};  
-    std::atomic<uint32_t> packetsLost{0};
-    
-    void logStats() const {
-        std::cout << "[Network] Sent=" << packetsSent.load() 
-                  << ", Received=" << packetsReceived.load()
-                  << ", Lost=" << packetsLost.load() << "\n";
-    }
-};
-
-// RTP Header structure
-#pragma pack(push, 1)
-struct RTPHeader {
-    uint8_t vpxcc;           // version(2), padding(1), extension(1), csrc count(4)
-    uint8_t mpt;             // marker(1), payload type(7)
-    uint16_t sequenceNumber; // Network byte order
-    uint32_t timestamp;      // Network byte order
-    uint32_t ssrc;           // Network byte order
-    
-    // Constructor to initialize all fields
-    RTPHeader() 
-        : vpxcc(0x80)           // version 2, no padding, no extension, no CSRC
-        , mpt(111)              // Payload type (Opus default, using for raw audio)
-        , sequenceNumber(0)
-        , timestamp(0)
-        , ssrc(0)
-    {}
-};
-#pragma pack(pop)
-
-// RTP Packet structure
-struct RTPPacket {
-    RTPHeader header;
-    std::vector<uint8_t> payload;
-    std::chrono::steady_clock::time_point arrivalTime;
-};
 
 class AudioJitterBuffer {
 public:

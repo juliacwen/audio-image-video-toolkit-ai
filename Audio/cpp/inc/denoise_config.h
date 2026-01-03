@@ -102,8 +102,8 @@ constexpr float DENORMAL_THRESHOLD = 1.0e-30f;
 constexpr float DENORMAL_GUARD_INITIAL = 1.0e-20f;
 
 // ------------------ Network Buffer Sizes ------------------
-constexpr int MAX_RTP_PACKET_SIZE = 4096;     // Maximum RTP packet size
-constexpr int RTP_BUFFER_SIZE = 4096; //FRAME_SIZE (480 samples) × numChannels (2) × sizeof(float) (4 bytes) = 480 × 2 × 4 = 3840 bytes Total: 12 + 3840 = 3852 bytes
+//constexpr int MAX_RTP_PACKET_SIZE = 4096;     // Maximum RTP packet size
+//constexpr int RTP_BUFFER_SIZE = 4096; //FRAME_SIZE (480 samples) × numChannels (2) × sizeof(float) (4 bytes) = 480 × 2 × 4 = 3840 bytes Total: 12 + 3840 = 3852 bytes
 
 // ------------------ Low Power Mode ------------------
 // When LOW_POWER_DEFAULT is true (Wearable/Embedded):
