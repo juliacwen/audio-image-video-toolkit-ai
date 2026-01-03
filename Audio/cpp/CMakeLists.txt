@@ -214,6 +214,8 @@ endif()
 set(DENOISE_NETWORK_SOURCES
   src/live_audio_denoise_network.cpp
   src/audio_jitter_buffer.cpp
+  Src/audio_io_context.cpp
+  src/network_rtp.cpp
   src/wav_writer.cpp
 )
 
