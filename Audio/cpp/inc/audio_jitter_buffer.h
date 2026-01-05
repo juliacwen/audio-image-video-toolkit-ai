@@ -5,6 +5,7 @@
  * @par Revision History
  * - 12-23-2025 — Initial Checkin
  * - 12-24-2025 — Add more jitter buffer config constants
+ * - 01-05-2026 — Add profile-specific configuration (DESKTOP/WEARABLE/EMBEDDED)
  */
 
 #ifndef AUDIO_JITTER_BUFFER_H
@@ -17,16 +18,36 @@
 #include <chrono>
 #include "network_rtp.h"
 
-// ------------------ Jitter Buffer Configuration ------------------
-constexpr int JITTER_BUFFER_MIN_MS = 40;      // Minimum latency (ms)
-constexpr int JITTER_BUFFER_MAX_MS = 200;     // Maximum latency (ms)
-constexpr int JITTER_BUFFER_TARGET_MS = 80;   // Target latency (ms)
+// ------------------ Jitter Buffer Configuration (Profile-Specific) ------------------
 
-// Jitter buffer adaptation thresholds
+#ifdef BUILD_EMBEDDED
+  // Embedded: Minimal buffering to conserve RAM (microcontrollers, IoT)
+  constexpr int JITTER_BUFFER_MIN_MS = 20;       // Ultra-low latency
+  constexpr int JITTER_BUFFER_MAX_MS = 60;       // Limited max to save RAM
+  constexpr int JITTER_BUFFER_TARGET_MS = 40;    // Fast response
+  constexpr int JITTER_INCREASE_STEP_MS = 10;    // Small adaptation steps
+  constexpr int JITTER_DECREASE_STEP_MS = 5;
+  
+#elif defined(BUILD_WEARABLE)
+  // Wearable: Balanced for battery life and quality (earbuds, headsets, phones)
+  constexpr int JITTER_BUFFER_MIN_MS = 30;       // Low latency
+  constexpr int JITTER_BUFFER_MAX_MS = 120;      // Moderate max
+  constexpr int JITTER_BUFFER_TARGET_MS = 60;    // Balance quality/latency
+  constexpr int JITTER_INCREASE_STEP_MS = 15;    // Moderate adaptation
+  constexpr int JITTER_DECREASE_STEP_MS = 8;
+  
+#else // BUILD_DESKTOP (default)
+  // Desktop: Full features, highest quality (servers, PCs, development)
+  constexpr int JITTER_BUFFER_MIN_MS = 40;       // Minimum latency (ms)
+  constexpr int JITTER_BUFFER_MAX_MS = 200;      // Maximum latency (ms)
+  constexpr int JITTER_BUFFER_TARGET_MS = 80;    // Target latency (ms)
+  constexpr int JITTER_INCREASE_STEP_MS = 20;    // Increase buffer by this amount
+  constexpr int JITTER_DECREASE_STEP_MS = 10;    // Decrease buffer by this amount
+#endif
+
+// Jitter buffer adaptation thresholds (same across all profiles)
 constexpr int JITTER_UNDERRUN_THRESHOLD = 20;      // Underruns before increasing buffer
 constexpr int JITTER_OVERFLOW_THRESHOLD = 10;      // Overflows before decreasing buffer
-constexpr int JITTER_INCREASE_STEP_MS = 20;        // Increase buffer by this amount
-constexpr int JITTER_DECREASE_STEP_MS = 10;        // Decrease buffer by this amount
 constexpr int JITTER_UNDERRUN_PRINT_INTERVAL = 10; // Print underrun message every N underruns
 
 // Time conversion
@@ -35,7 +56,7 @@ constexpr int MS_PER_SECOND = 1000;
 
 class AudioJitterBuffer {
 public:
-    AudioJitterBuffer(int sampleRate, int channels, int targetMs = 80);
+    AudioJitterBuffer(int sampleRate, int channels, int targetMs = JITTER_BUFFER_TARGET_MS);
     
     // Add packet to jitter buffer
     bool addPacket(const RTPPacket& packet);

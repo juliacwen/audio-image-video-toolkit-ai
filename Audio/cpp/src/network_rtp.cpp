@@ -26,6 +26,7 @@
  * 
  * @par Revision History
  * - 01-02-2026 — Initial Checkin
+ * - 01-05-2026 — Add profile logging
  */
 
 #include <iostream>
@@ -180,7 +181,18 @@ void NetworkRTP::receiveThreadFunc(AudioIOContext* ctx) {
     
     std::cout << "[Network] Receive thread started\n";
     
-    // Create jitter buffer
+    // Create jitter buffer - uses profile-specific JITTER_BUFFER_TARGET_MS from header
+    std::cout << "[Network] Jitter buffer config: " << JITTER_BUFFER_TARGET_MS << "ms target, "
+              << JITTER_BUFFER_MIN_MS << "-" << JITTER_BUFFER_MAX_MS << "ms range";
+#ifdef BUILD_EMBEDDED
+    std::cout << " (EMBEDDED profile)";
+#elif defined(BUILD_WEARABLE)
+    std::cout << " (WEARABLE profile)";
+#else
+    std::cout << " (DESKTOP profile)";
+#endif
+    std::cout << "\n";
+    
     ctx->jitterBuffer = std::make_unique<AudioJitterBuffer>(
         SAMPLE_RATE, ctx->numChannels, JITTER_BUFFER_TARGET_MS);
     
