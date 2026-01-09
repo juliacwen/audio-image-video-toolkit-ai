@@ -35,6 +35,9 @@ struct FrameRMS {
  * 
  * This class loads RMS log files and provides various analysis methods to find
  * frames where |out_rms - in_rms| is large, which may indicate audio issues.
+ * 
+ * Note: Copy operations are disabled to prevent expensive data duplication.
+ * Use move semantics if you need to transfer ownership.
  */
 class RMSAnalyzer {
 public:
@@ -47,6 +50,17 @@ public:
      * Space Complexity: O(N) to store frame data
      */
     explicit RMSAnalyzer(const std::string& filename);
+
+    // Disable copying (data can be large)
+    RMSAnalyzer(const RMSAnalyzer&) = delete;
+    RMSAnalyzer& operator=(const RMSAnalyzer&) = delete;
+    
+    // Enable moving (efficient transfer of ownership)
+    RMSAnalyzer(RMSAnalyzer&&) = default;
+    RMSAnalyzer& operator=(RMSAnalyzer&&) = default;
+    
+    // Destructor (compiler-generated is fine, but explicit for documentation)
+    ~RMSAnalyzer() = default;
 
     /**
      * @brief Find frame with maximum |out_rms - in_rms| across entire dataset
@@ -107,5 +121,4 @@ private:
      */
     void load_file(const std::string& filename);
 };
-
 #endif // RMS_LOG_ANALYZE_H

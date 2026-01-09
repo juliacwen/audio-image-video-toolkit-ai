@@ -23,6 +23,7 @@
  * 
  * @par Revision History
  * - 01-07-2026 — Initial Checkin
+ * - 01-08-2026 — Updated to output sorted csv
  */
 
 #include "../inc/rms_analyze.h"
@@ -259,9 +260,10 @@ std::vector<std::tuple<int,double,double,double>> RMSAnalyzer::sort_all() const 
 //   --global           : show global max difference frame
 //   --window <size>    : show max per window of specified size
 //   --topk <K>         : show top K worst frames
-//   --sort-all         : sort and display all frames by difference
+//   --sort-all         : sort and display all frames by difference, save to rms_log_sorted.csv
 //   --help, -h         : display usage information
 // 
+// Default behavior (no options): displays global max
 // Multiple options can be combined in a single run for comprehensive analysis
 int main(int argc, char* argv[]) {
     std::string filename = "rms_log.txt";
@@ -295,17 +297,26 @@ int main(int argc, char* argv[]) {
                       << "  --global            Display frame with maximum global difference\n"
                       << "  --window <size>     Display max difference per window of <size> frames\n"
                       << "  --topk <K>          Display top K frames with largest differences\n"
-                      << "  --sort-all          Display all frames sorted by difference (descending)\n"
+                      << "  --sort-all          Sort all frames and save to rms_log_sorted.csv\n"
                       << "  --help, -h          Show this help message\n\n"
+                      << "Default behavior: If no analysis options are specified, displays global max\n\n"
                       << "Examples:\n"
+                      << "  " << argv[0] << "                              # Show global max\n"
                       << "  " << argv[0] << " --file audio.log --global --topk 10\n"
-                      << "  " << argv[0] << " --window 1000 --topk 50\n";
+                      << "  " << argv[0] << " --window 1000 --topk 50\n"
+                      << "  " << argv[0] << " --sort-all                   # Save sorted results to file\n";
             return 0;
         } else {
             std::cerr << "ERROR: Unknown argument: " << arg << "\n";
             std::cerr << "Use --help for usage information\n";
             return 1;
         }
+    }
+
+    // If no analysis options specified, default to global max
+    if (!do_global && !do_window && !do_topk && !do_sort_all) {
+        do_global = true;
+        std::cout << "No analysis option specified, defaulting to --global\n\n";
     }
 
     // Load and analyze data
@@ -348,8 +359,33 @@ int main(int argc, char* argv[]) {
 
     if (do_sort_all) {
         auto res = analyzer.sort_all();
+        
+        // Write to CSV file
+        std::string output_file = "rms_log_sorted.csv";
+        std::ofstream outfile(output_file);
+        if (!outfile) {
+            std::cerr << "ERROR: Cannot create output file: " << output_file << "\n";
+            return 1;
+        }
+        
+        // Write CSV header
+        outfile << std::fixed << std::setprecision(6);
+        outfile << "frame,diff,in_rms,out_rms\n";
+        
+        // Write all sorted results
+        for (const auto& [f, diff, in_val, out_val] : res) {
+            outfile << f << "," << diff << "," << in_val << "," << out_val << "\n";
+        }
+        
+        outfile.close();
         std::cout << "\n=== All Frames Sorted by Difference ===\n";
-        for (size_t i = 0; i < res.size(); ++i) {
+        std::cout << "Results saved to: " << output_file << " (CSV format)\n";
+        std::cout << "Total frames: " << res.size() << "\n";
+        
+        // Display top 10 as preview
+        std::cout << "\nTop 10 preview:\n";
+        size_t preview_count = std::min(size_t(10), res.size());
+        for (size_t i = 0; i < preview_count; ++i) {
             auto [f, diff, in_val, out_val] = res[i];
             std::cout << "  " << (i+1) << ". Diff=" << diff 
                       << " Frame=" << f
