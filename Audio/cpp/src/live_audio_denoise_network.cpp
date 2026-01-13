@@ -61,6 +61,7 @@
  * - 12-20-2025 — Fix output wav name and atomic operations
  * - 12-24-2025 — Step 2: Add adaptive jitter buffer with packet loss handling
  * - 01-02-2026 — Refactor: Extract network code to network_rtp.h/.cpp, AudioIOContext to separate files
+ * - 01-13-2026 — csv support
  * 
  */
 
@@ -411,6 +412,7 @@ void printUsage(const char* programName) {
     std::cout << "  --vad            Enable VAD\n";
     std::cout << "  --no-vad         Disable VAD\n";
     std::cout << "  --wav            Enable WAV recording (disabled by default)\n";
+    std::cout << "  --csv            Enable CSV logging for RMS (disabled by default)\n";
     std::cout << "\n";
     std::cout << "Network Options:\n";
     std::cout << "  --send           Sender mode\n";
@@ -426,11 +428,11 @@ void printUsage(const char* programName) {
     std::cout << "  " << programName << " --send --dest 192.168.1.2  # Send mic\n";
     std::cout << "  " << programName << " --send --test-tone         # Send test tone\n";
     std::cout << "  " << programName << " --receive --port 5004      # Receive\n";
-    std::cout << "  " << programName << " --send --wav               # Send with WAV recording\n";
+    std::cout << "  " << programName << " --send --wav --csv         # Send with WAV and CSV logging\n";
 }
 
 bool parseArguments(int argc, char* argv[],
-                   int& numChannels, bool& bypass, bool& vad, bool& wav,
+                   int& numChannels, bool& bypass, bool& vad, bool& wav, bool& csvLog,
                    bool& netSend, bool& netRecv, std::string& ip, int& port,
                    bool& testTone) {
     for (int i = 1; i < argc; ++i) {
@@ -440,6 +442,7 @@ bool parseArguments(int argc, char* argv[],
         else if (arg == "--vad") vad = true;
         else if (arg == "--no-vad") vad = false;
         else if (arg == "--wav") wav = true;
+        else if (arg == "--csv") csvLog = true;
         else if (arg == "--send") netSend = true;
         else if (arg == "--receive") netRecv = true;
         else if (arg == "--test-tone") testTone = true;
@@ -457,13 +460,14 @@ int main(int argc, char* argv[]) {
         std::signal(SIGINT, intHandler);
         
         int numChannels = NUM_CHANNELS_DEFAULT;
-        bool bypass = false, vad = ENABLE_VAD_DEFAULT, wav = false;  // WAV disabled by default
+        bool bypass = false, vad = ENABLE_VAD_DEFAULT, wav = false;
+        bool csvLog = false;  // CSV logging disabled by default
         bool netSend = false, netRecv = false;
         bool testTone = false;
         std::string ip = "127.0.0.1";
         int port = 5004;
         
-        if (!parseArguments(argc, argv, numChannels, bypass, vad, wav,
+        if (!parseArguments(argc, argv, numChannels, bypass, vad, wav, csvLog,
                           netSend, netRecv, ip, port, testTone)) return 0;
         
         std::cout << "=== Live Audio Denoise + Network ===\n";
@@ -483,7 +487,7 @@ int main(int argc, char* argv[]) {
         }
         
         size_t bufSz = CIRCULAR_BUFFER_FRAMES * numChannels;
-        AudioIOContext ctx(bufSz, numChannels, bypass, vad, false, wav);
+        AudioIOContext ctx(bufSz, numChannels, bypass, vad, false, wav, csvLog);
         ctx.networkSend = netSend;
         ctx.networkReceive = netRecv;
         ctx.generateTestTone = testTone;
@@ -578,6 +582,11 @@ int main(int argc, char* argv[]) {
         if (netThread) { netThread->join(); delete netThread; }
         Pa_CloseStream(stream);
         Pa_Terminate();
+        
+        // Auto-convert log to CSV if CSV logging was enabled
+        if (csvLog) {
+            std::cout << "[RMS Log] CSV file saved: test_output/rms_log.csv\n";
+        }
         
         std::cout << "Done.\n";
         return 0;

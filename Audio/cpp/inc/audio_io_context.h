@@ -16,10 +16,10 @@
  * 
  * @par Revision History
  * - 01-02-2026 — Initial Checkin
+ * - 01-13-2026 - support csv format for RMS logs
  */
 
 #pragma once
-
 #ifndef AUDIO_IO_CONTEXT_H
 #define AUDIO_IO_CONTEXT_H
 
@@ -55,6 +55,7 @@ struct AudioIOContext {
 
 #if ENABLE_FILE_LOGGING
     std::ofstream logFile;
+    std::string logFilename;  // Store filename for CSV conversion
 #endif
     
     // Configuration
@@ -62,6 +63,7 @@ struct AudioIOContext {
     bool enableVAD;
     bool lowPowerMode;
     bool enableWavWrite;
+    bool enableCsvLog;  // Enable CSV logging for RMS
     float denormalGuard;
     int numChannels;
     
@@ -79,10 +81,11 @@ struct AudioIOContext {
     bool generateTestTone = false;
     double testTonePhase = 0.0;
 
-    AudioIOContext(size_t bufferSize, int numCh, bool bypass, bool vad, bool lowPower, bool wavWrite);
+    AudioIOContext(size_t bufferSize, int numCh, bool bypass, bool vad, bool lowPower, bool wavWrite, bool csvLog = false);
     ~AudioIOContext();
     
     bool initWavWriters(bool hasInput, bool hasOutput, bool isSender, bool isReceiver);
+    void convertLogToCSV();  // Convert RMS log to CSV format
 };
 
 #endif // AUDIO_IO_CONTEXT_H
