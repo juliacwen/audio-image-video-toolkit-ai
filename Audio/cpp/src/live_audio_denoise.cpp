@@ -4,9 +4,9 @@
  * @author Julia Wen (wendigilane@gmail.com)
  * 
  * OVERVIEW:
- * Real-time audio denoising system using PortAudio and RNNoise with support for multiple
- * build profiles. Features lock-free ring buffering and voice activity detection.
- * This is for local host only, not network streaming with send and receive
+ * Real-time audio denoising system using PortAudio and RNNoise with support for multiple build profiles. 
+ * Features lock-free ring buffering and voice activity detection.
+ * This is for local host only. For network streaming with send and receive, please look at live_audio_denoise_network.cpp.
  * 
  * Features:
  *  - Real-time audio input/output using PortAudio
@@ -16,7 +16,7 @@
  *  - Voice Activity Detection (VAD) for power saving
  *  - Profile-based optimization (Desktop/Wearable/Embedded)
  *  - Optional WAV recording for debugging purpose
- *  - RMS logging with periodic console output
+ *  - RMS logging with periodic console output (CSV or text format)
  * 
  * BUILD PROFILES:
  * 
@@ -83,10 +83,14 @@
  *                Optimized RMS calculation
  *                Add --wav flag for debugging on wearable/embedded
  *                Add --no-low-power and --no-vad flags on wearable/embedded
- * 
+ * - 01-14-2026 — Add CSV logging support for RMS data (--csv flag) 
+ *                Mode 1: Without --csv Runtime: Writes rms_log.txt in space-separated format. On exit: Auto-converts to rms_log.csv
+ *                Mode 2: With --csv Runtime: Writes rms_log.csv directly in CSV format
  */
 
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 #include <filesystem>
 #include <csignal>
 #include <atomic>
@@ -137,6 +141,7 @@ struct AudioIOContext {
 
 #if ENABLE_FILE_LOGGING
     std::ofstream logFile;  // RMS and VAD state log
+    std::string logFilename;  // Store filename for CSV conversion
 #endif
     
     // Configuration flags
@@ -144,6 +149,7 @@ struct AudioIOContext {
     bool enableVAD;       // Voice Activity Detection enabled
     bool lowPowerMode;    // Reduced logging and I/O
     bool enableWavWrite;  // Enable WAV file writing (separate from low power)
+    bool enableCsvLog;    // Enable CSV format for RMS logging
     float denormalGuard;  // Alternating offset to prevent denormals
     int numChannels;      // Number of audio channels
     
@@ -152,13 +158,14 @@ struct AudioIOContext {
     bool isVoiceActive;       // Current VAD decision
     float smoothedRMS;        // Exponentially smoothed RMS for stable VAD
 
-    AudioIOContext(size_t bufferSize, int numCh, bool bypass, bool vad, bool lowPower, bool wavWrite)
+    AudioIOContext(size_t bufferSize, int numCh, bool bypass, bool vad, bool lowPower, bool wavWrite, bool csvLog)
         : inputBuffer(bufferSize),
           outputBuffer(bufferSize),
           bypassDenoise(bypass),
           enableVAD(vad),
           lowPowerMode(lowPower),
           enableWavWrite(wavWrite),
+          enableCsvLog(csvLog),
           denormalGuard(DENORMAL_GUARD_INITIAL),
           numChannels(numCh),
           vadHangoverCounter(0),
@@ -178,6 +185,73 @@ struct AudioIOContext {
         for (auto* state : states) {
             if (state) rnnoise_destroy(state);
         }
+    }
+    
+    void convertLogToCSV(const std::filesystem::path& outputDir) {
+#if ENABLE_FILE_LOGGING
+        // If already CSV format, nothing to do
+        if (enableCsvLog) {
+            std::cout << "[RMS Log] Already in CSV format: " << logFilename << "\n";
+            return;
+        }
+        
+        // Close the current log file
+        if (logFile.is_open()) {
+            logFile.close();
+        }
+        
+        // Read the space-separated file
+        auto txtPath = outputDir / "rms_log.txt";
+        std::ifstream inFile(txtPath);
+        if (!inFile.is_open()) {
+            std::cerr << "[RMS Log] Could not open rms_log.txt for conversion\n";
+            return;
+        }
+        
+        // Open CSV output file
+        auto csvPath = outputDir / "rms_log.csv";
+        std::ofstream csvFile(csvPath);
+        if (!csvFile.is_open()) {
+            std::cerr << "[RMS Log] Could not create rms_log.csv\n";
+            inFile.close();
+            return;
+        }
+        
+        // Write CSV header
+        csvFile << "frame,in_rms,out_rms,processed\n";
+        
+        std::string line;
+        bool firstLine = true;
+        int lineCount = 0;
+        
+        while (std::getline(inFile, line)) {
+            // Skip the header line
+            if (firstLine) {
+                firstLine = false;
+                continue;
+            }
+            
+            // Parse space-separated values
+            std::istringstream iss(line);
+            uint64_t frame;
+            float inRMS, outRMS;
+            int processed;
+            
+            if (iss >> frame >> inRMS >> outRMS >> processed) {
+                // Write as CSV
+                csvFile << frame << "," 
+                        << std::fixed << std::setprecision(6) << inRMS << ","
+                        << std::fixed << std::setprecision(6) << outRMS << ","
+                        << processed << "\n";
+                lineCount++;
+            }
+        }
+        
+        inFile.close();
+        csvFile.close();
+        
+        std::cout << "[RMS Log] Converted " << lineCount << " lines to CSV: " << csvPath << "\n";
+#endif
     }
 };
 
@@ -409,8 +483,18 @@ void processingThread(AudioIOContext* audioIOCtx, int numChannels)
         // Log RMS values periodically (not every frame in wearable/embedded)
         if (framesProcessed % LOG_EVERY_N_FRAMES == 0) {
             float outRMS = calculateRMS(outFrame.data(), FRAME_SIZE, numChannels);
-            audioIOCtx->logFile << framesProcessed << " " << inRMS << " " << outRMS 
-                              << " " << (processFrame ? 1 : 0) << "\n";
+            
+            if (audioIOCtx->enableCsvLog) {
+                // CSV format: frame,in_rms,out_rms,processed
+                audioIOCtx->logFile << framesProcessed << "," 
+                                   << std::fixed << std::setprecision(6) << inRMS << ","
+                                   << std::fixed << std::setprecision(6) << outRMS << ","
+                                   << (processFrame ? 1 : 0) << "\n";
+            } else {
+                // Space-separated format
+                audioIOCtx->logFile << framesProcessed << " " << inRMS << " " << outRMS 
+                                   << " " << (processFrame ? 1 : 0) << "\n";
+            }
         }
 #endif
 
@@ -453,6 +537,7 @@ void printUsage(const char* programName) {
     
     std::cout << "  -c, --channels N     Number of channels 1-" << NUM_CHANNELS_MAX << " (default: 1)\n";
     std::cout << "  --bypass             Bypass denoising (pass-through)\n";
+    std::cout << "  --csv                Enable CSV format for RMS logging (default: text)\n";
     
     // Show appropriate VAD option based on default
     if (ENABLE_VAD_DEFAULT) {
@@ -475,15 +560,15 @@ void printUsage(const char* programName) {
 #ifdef BUILD_WEARABLE
     std::cout << "  " << programName << "                           # Default: VAD on, low power on, no WAV\n";
     std::cout << "  " << programName << " --channels 8               # 8-channel (AR/VR)\n";
-    std::cout << "  " << programName << " --wav                      # Enable WAV recording for debugging\n";
+    std::cout << "  " << programName << " --wav --csv                # Enable WAV and CSV logging\n";
     std::cout << "  " << programName << " --no-vad --no-low-power    # Full power, no optimizations\n";
 #elif defined(BUILD_EMBEDDED)
     std::cout << "  " << programName << "                           # Default: mono, VAD on, low power on, no WAV\n";
-    std::cout << "  " << programName << " --wav                      # Enable WAV recording for debugging\n";
+    std::cout << "  " << programName << " --wav --csv                # Enable WAV and CSV logging\n";
     std::cout << "  " << programName << " --no-vad --no-low-power    # Full logging and recording\n";
 #else
     std::cout << "  " << programName << "                           # Default: full features, WAV recording on\n";
-    std::cout << "  " << programName << " --channels 8 --vad         # Multi-channel with VAD\n";
+    std::cout << "  " << programName << " --channels 8 --vad --csv   # Multi-channel with VAD and CSV\n";
     std::cout << "  " << programName << " --bypass                   # Test mode\n";
 #endif
 }
@@ -495,7 +580,8 @@ bool parseArguments(int argc, char* argv[],
                    bool& bypassDenoise,
                    bool& enableVAD,
                    bool& lowPowerMode,
-                   bool& enableWavWrite)
+                   bool& enableWavWrite,
+                   bool& enableCsvLog)
 {
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -510,6 +596,7 @@ bool parseArguments(int argc, char* argv[],
         else if (arg == "--no-low-power") lowPowerMode = false;
         else if (arg == "--low-power") lowPowerMode = true;
         else if (arg == "--wav") enableWavWrite = true;
+        else if (arg == "--csv") enableCsvLog = true;
         else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
             outputDir = argv[++i];
         }
@@ -554,10 +641,11 @@ int main(int argc, char* argv[])
         bool enableVAD = ENABLE_VAD_DEFAULT;
         bool lowPowerMode = LOW_POWER_DEFAULT;
         bool enableWavWrite = !LOW_POWER_DEFAULT;  // WAV off in low power mode by default
+        bool enableCsvLog = false;  // CSV logging off by default
 
         // Parse command line arguments
         if (!parseArguments(argc, argv, outputDir, bitDepth, numChannels, 
-                          bypassDenoise, enableVAD, lowPowerMode, enableWavWrite)) {
+                          bypassDenoise, enableVAD, lowPowerMode, enableWavWrite, enableCsvLog)) {
             return 0;
         }
 
@@ -602,22 +690,20 @@ int main(int argc, char* argv[])
                  << CIRCULAR_BUFFER_FRAMES << " frame buffer (" << BUFFER_LATENCY_MS << "ms)\n";
         std::cout << "VAD: " << (enableVAD ? "on" : "off") 
                  << ", Low power: " << (lowPowerMode ? "on" : "off")
-                 << ", WAV recording: " << (enableWavWrite ? "on" : "off");
+                 << ", WAV recording: " << (enableWavWrite ? "on" : "off")
+                 << ", CSV logging: " << (enableCsvLog ? "on" : "off");
         std::cout << "\n\n";
 
 #if ENABLE_WAV_WRITING
-        // Create output directory only if WAV writing is enabled
         if (enableWavWrite && !std::filesystem::exists(outputDir)) {
             std::filesystem::create_directories(outputDir);
         }
 #endif
 
-        // Initialize audio context
         size_t bufferSize = CIRCULAR_BUFFER_FRAMES * static_cast<size_t>(numChannels);
-        AudioIOContext audioIOCtx(bufferSize, numChannels, bypassDenoise, enableVAD, lowPowerMode, enableWavWrite);
+        AudioIOContext audioIOCtx(bufferSize, numChannels, bypassDenoise, enableVAD, lowPowerMode, enableWavWrite, enableCsvLog);
 
 #if ENABLE_WAV_WRITING
-        // Set up WAV file writers only if enabled
         if (enableWavWrite) {
             auto inputPath  = outputDir / "input_raw.wav";
             auto outputPath = outputDir / "output_denoised.wav";
@@ -627,21 +713,29 @@ int main(int argc, char* argv[])
 #endif
 
 #if ENABLE_FILE_LOGGING
-        // Set up RMS log file
-        auto logPath = outputDir / "rms_log.txt";
-        audioIOCtx.logFile.open(logPath, std::ios::out);
+        if (enableCsvLog) {
+            auto logPath = outputDir / "rms_log.csv";
+            audioIOCtx.logFilename = logPath.string();
+            audioIOCtx.logFile.open(logPath, std::ios::out);
+            if (audioIOCtx.logFile.is_open()) {
+                audioIOCtx.logFile << "frame,in_rms,out_rms,processed\n";
+            }
+        } else {
+            auto logPath = outputDir / "rms_log.txt";
+            audioIOCtx.logFilename = logPath.string();
+            audioIOCtx.logFile.open(logPath, std::ios::out);
+            if (audioIOCtx.logFile.is_open()) {
+                audioIOCtx.logFile << "frame in_rms out_rms processed\n";
+            }
+        }
 #endif
 
         std::cout << "Press Ctrl+C to stop...\n\n";
 
-        // Open PortAudio stream
         PaStream* stream = nullptr;
         
-        // CRITICAL: Verify 48kHz sample rate
         if (SAMPLE_RATE != 48000) {
             std::cerr << "ERROR: RNNoise requires 48kHz sample rate!\n";
-            std::cerr << "Current rate: " << SAMPLE_RATE << " Hz\n";
-            std::cerr << "Please rebuild with BUILD_PROFILE that uses 48kHz\n";
             Pa_Terminate();
             return 1;
         }
@@ -655,7 +749,6 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        // Start audio stream
         err = Pa_StartStream(stream);
         if (err != paNoError) {
             std::cerr << "Error starting stream: " << Pa_GetErrorText(err) << std::endl;
@@ -664,19 +757,15 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        // Pre-fill output buffer with silence to prevent initial click
         std::vector<float> silence(FRAME_SIZE * numChannels * 2, 0.0f);
         audioIOCtx.outputBuffer.pushBulk(silence.data(), silence.size());
 
-        // Start processing thread
         std::thread procThread(processingThread, &audioIOCtx, numChannels);
 
-        // Main loop: wait for Ctrl+C
         while (keepRunning) {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
-        // Shutdown sequence
         std::cout << "\nShutting down...\n";
         Pa_StopStream(stream);
         procThread.join();
@@ -685,6 +774,9 @@ int main(int argc, char* argv[])
 
 #if ENABLE_FILE_LOGGING
         audioIOCtx.logFile.close();
+        if (!enableCsvLog) {
+            audioIOCtx.convertLogToCSV(outputDir);
+        }
 #endif
 
 #if ENABLE_WAV_WRITING
@@ -695,11 +787,13 @@ int main(int argc, char* argv[])
             std::cout << "  Input:  " << inputPath << "\n";
             std::cout << "  Output: " << outputPath << "\n";
 #if ENABLE_FILE_LOGGING
-            auto logPath = outputDir / "rms_log.txt";
-            std::cout << "  Log:    " << logPath << "\n";
+            if (enableCsvLog) {
+                std::cout << "  Log:    " << outputDir / "rms_log.csv" << " (CSV)\n";
+            } else {
+                std::cout << "  Log:    " << outputDir / "rms_log.txt" << " (text)\n";
+                std::cout << "  Log:    " << outputDir / "rms_log.csv" << " (CSV)\n";
+            }
 #endif
-        } else {
-            std::cout << "WAV recording was disabled (low power mode)\n";
         }
 #endif
 
