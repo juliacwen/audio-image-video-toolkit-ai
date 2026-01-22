@@ -12,10 +12,10 @@
  * Used by:
  * - live_audio_denoise.cpp
  * - live_audio_tonal_detection.cpp
- * - Other real-time audio processing tools
+ * - Other real-time audio processing tool
  * 
  * @par Revision History
- * - 01-20-2026 — Initial creation - extracted from live_audio_denoise.cpp
+ * - 01-20-2026 — Initial creation - extracted from prior live_audio_denoise.cpp
  */
 
 #include "../inc/audio_framework_base.h"

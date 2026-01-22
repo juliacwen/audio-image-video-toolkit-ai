@@ -164,6 +164,7 @@ target_include_directories(fft_utils PUBLIC ${PROJECT_SOURCE_DIR}/inc ${PROJECT_
 # ------------------------
 # Common source files
 set(DENOISE_SOURCES
+  src/audio_framework_base.cpp
   src/live_audio_denoise.cpp
   src/wav_writer.cpp
 )
@@ -206,6 +207,47 @@ target_link_libraries(live_audio_denoise_embedded PRIVATE
 if(RNNOISE_LIB)
   target_link_libraries(live_audio_denoise_embedded PRIVATE ${RNNOISE_LIB})
 endif()
+
+# ------------------------
+# Live Audio Tonal Detection Executables (Multiple Profiles)
+# ------------------------
+# Common source files
+set(TONAL_SOURCES
+  src/audio_framework_base.cpp
+  src/live_audio_tonal_detection.cpp
+  src/wav_writer.cpp
+)
+
+# Desktop build (full features)
+add_executable(live_audio_tonal_detection_desktop ${TONAL_SOURCES})
+target_compile_definitions(live_audio_tonal_detection_desktop PRIVATE BUILD_DESKTOP)
+target_include_directories(live_audio_tonal_detection_desktop PRIVATE ${PORTAUDIO_INCLUDE_DIR_FOUND})
+target_link_libraries(live_audio_tonal_detection_desktop PRIVATE 
+  ${PORTAUDIO_LIBRARY_FOUND} 
+  ${MATH_LIB}
+  Threads::Threads
+)
+
+# Wearable build (power optimized)
+add_executable(live_audio_tonal_detection_wearable ${TONAL_SOURCES})
+target_compile_definitions(live_audio_tonal_detection_wearable PRIVATE BUILD_WEARABLE)
+target_include_directories(live_audio_tonal_detection_wearable PRIVATE ${PORTAUDIO_INCLUDE_DIR_FOUND})
+target_link_libraries(live_audio_tonal_detection_wearable PRIVATE 
+  ${PORTAUDIO_LIBRARY_FOUND} 
+  ${MATH_LIB}
+  Threads::Threads
+)
+
+# Embedded build (minimal resources)
+add_executable(live_audio_tonal_detection_embedded ${TONAL_SOURCES})
+target_compile_definitions(live_audio_tonal_detection_embedded PRIVATE BUILD_EMBEDDED)
+target_include_directories(live_audio_tonal_detection_embedded PRIVATE ${PORTAUDIO_INCLUDE_DIR_FOUND})
+target_link_libraries(live_audio_tonal_detection_embedded PRIVATE 
+  ${PORTAUDIO_LIBRARY_FOUND} 
+  ${MATH_LIB}
+  Threads::Threads
+)
+
 
 # ------------------------
 # Live Audio Denoise Network Executables (Multiple Profiles)
